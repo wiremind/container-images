@@ -19,30 +19,38 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v47
         with:
-          fetch-depth: 2
+          files: |
+            **/Containerfile
+            **/versions.yaml
+          dir_names: true
+          dir_names_exclude_current_dir: true
+          dir_names_max_depth: 1
 
       - name: Build matrix from changed images
         id: matrix
         run: |
-          # Get changed files in this push
-          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          CHANGED_DIRS="${{ steps.changed-files.outputs.all_changed_files }}"
 
-          # Find directories with changed Containerfiles or versions.yaml
+          if [ -z "$CHANGED_DIRS" ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo 'matrix={"include":[]}' >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Filter out .github and root directories
           IMAGES=()
-          for file in $CHANGED_FILES; do
-            if [[ "$file" == */Containerfile ]] || [[ "$file" == */versions.yaml ]]; then
-              dir=$(dirname "$file")
-              if [[ "$dir" != "." ]] && [[ "$dir" != ".github"* ]]; then
-                IMAGES+=("$dir")
-              fi
+          for dir in $CHANGED_DIRS; do
+            if [[ "$dir" != ".github"* ]] && [[ "$dir" != "." ]]; then
+              IMAGES+=("$dir")
             fi
           done
 
-          # Remove duplicates
-          UNIQUE_IMAGES=($(printf '%s\n' "${IMAGES[@]}" | sort -u))
-
-          if [ ${#UNIQUE_IMAGES[@]} -eq 0 ]; then
+          if [ ${#IMAGES[@]} -eq 0 ]; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
             echo 'matrix={"include":[]}' >> $GITHUB_OUTPUT
             exit 0
@@ -50,10 +58,10 @@ jobs:
 
           # Build matrix with image and version combinations
           MATRIX_INCLUDES=()
-          for image in "${UNIQUE_IMAGES[@]}"; do
+          for image in "${IMAGES[@]}"; do
             if [ -f "$image/versions.yaml" ]; then
-              # Read versions from yaml file
-              VERSIONS=$(yq -r '.versions[]' "$image/versions.yaml")
+              # Read versions from yaml file (strip comments)
+              VERSIONS=$(yq -r '.versions[]' "$image/versions.yaml" | sed 's/#.*//' | xargs)
               for version in $VERSIONS; do
                 MATRIX_INCLUDES+=("{\"image\":\"$image\",\"upstream_tag\":\"$version\"}")
               done
@@ -69,9 +77,8 @@ jobs:
             MATRIX_JSON=$(printf '%s\n' "${MATRIX_INCLUDES[@]}" | jq -s -c '{include: .}')
             echo "has_changes=true" >> $GITHUB_OUTPUT
             echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+            echo "Matrix: $MATRIX_JSON"
           fi
-
-          echo "Matrix: $MATRIX_JSON"
 
   build:
     needs: detect-changes
@@ -93,13 +100,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Extract version info
-        id: version
-        run: |
-          # Image name from directory
-          IMAGE_NAME="${{ matrix.image }}"
-          echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
-
       - name: Log in to the Container registry
         uses: docker/login-action@v3
         with:
@@ -117,7 +117,7 @@ jobs:
           build-args: |
             UPSTREAM_TAG=${{ matrix.upstream_tag }}
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ steps.version.outputs.image_name }}:${{ matrix.upstream_tag }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}:${{ matrix.upstream_tag }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -126,7 +126,7 @@ jobs:
       - name: Scan image with Kubescape
         uses: kubescape/github-action@main
         with:
-          image: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ steps.version.outputs.image_name }}:${{ matrix.upstream_tag }}
+          image: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}:${{ matrix.upstream_tag }}
           format: sarif
           outputFile: kubescape-results.sarif
         continue-on-error: true
@@ -137,4 +137,3 @@ jobs:
           sarif_file: kubescape-results.sarif
           category: kubescape-${{ matrix.image }}-${{ matrix.upstream_tag }}
         if: always()
-
