@@ -1,0 +1,79 @@
+name: Test Containerfiles
+
+on:
+  pull_request:
+    paths:
+      - "**/Containerfile"
+      - "**/versions.yaml"
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.changes.outputs.images }}
+      has_changes: ${{ steps.changes.outputs.has_changes }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect changed Containerfiles
+        id: changes
+        run: |
+          # Get list of changed files
+          CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only)
+
+          # Find directories containing changed Containerfiles
+          IMAGES=()
+          for file in $CHANGED_FILES; do
+            if [[ "$file" == */Containerfile ]] || [[ "$file" == */versions.yaml ]]; then
+              dir=$(dirname "$file")
+              # Skip .github and root
+              if [[ "$dir" != "." ]] && [[ "$dir" != ".github"* ]]; then
+                IMAGES+=("$dir")
+              fi
+            fi
+          done
+
+          # Remove duplicates and create JSON array
+          UNIQUE_IMAGES=($(printf '%s\n' "${IMAGES[@]}" | sort -u))
+
+          if [ ${#UNIQUE_IMAGES[@]} -eq 0 ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "images=[]" >> $GITHUB_OUTPUT
+          else
+            JSON_ARRAY=$(printf '%s\n' "${UNIQUE_IMAGES[@]}" | jq -R . | jq -s -c .)
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "images=$JSON_ARRAY" >> $GITHUB_OUTPUT
+          fi
+
+          echo "Detected images: ${UNIQUE_IMAGES[*]}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  hadolint:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJson(needs.detect-changes.outputs.images) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ${{ matrix.image }}/Containerfile
+          format: sarif
+          output-file: hadolint-${{ matrix.image }}.sarif
+          failure-threshold: warning
+
+      - name: Upload Hadolint results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: hadolint-${{ matrix.image }}.sarif
+          category: hadolint-${{ matrix.image }}
+        if: always()
+

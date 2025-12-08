@@ -1,0 +1,28 @@
+# General
+*.log
+*.tmp
+*.swp
+
+# Editor directories and files
+.*.sw?
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Node
+node_modules/
+
+# Build artifacts
+build/
+dist/
+
+# Docker
+*.tar
+
+# Environments
+.env
+
+# GitHub
+/.github/*/node_modules
