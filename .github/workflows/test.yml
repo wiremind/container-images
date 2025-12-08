@@ -10,45 +10,51 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      images: ${{ steps.changes.outputs.images }}
-      has_changes: ${{ steps.changes.outputs.has_changes }}
+      images: ${{ steps.filter.outputs.images }}
+      has_changes: ${{ steps.filter.outputs.has_changes }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Detect changed Containerfiles
-        id: changes
-        run: |
-          # Get list of changed files
-          CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only)
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v47
+        with:
+          files: |
+            **/Containerfile
+            **/versions.yaml
+          dir_names: true
+          dir_names_exclude_current_dir: true
+          dir_names_max_depth: 1
 
-          # Find directories containing changed Containerfiles
+      - name: Build images list
+        id: filter
+        run: |
+          CHANGED_DIRS="${{ steps.changed-files.outputs.all_changed_files }}"
+
+          if [ -z "$CHANGED_DIRS" ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "images=[]" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Convert space-separated to JSON array, filtering out .github
           IMAGES=()
-          for file in $CHANGED_FILES; do
-            if [[ "$file" == */Containerfile ]] || [[ "$file" == */versions.yaml ]]; then
-              dir=$(dirname "$file")
-              # Skip .github and root
-              if [[ "$dir" != "." ]] && [[ "$dir" != ".github"* ]]; then
-                IMAGES+=("$dir")
-              fi
+          for dir in $CHANGED_DIRS; do
+            if [[ "$dir" != ".github"* ]] && [[ "$dir" != "." ]]; then
+              IMAGES+=("$dir")
             fi
           done
 
-          # Remove duplicates and create JSON array
-          UNIQUE_IMAGES=($(printf '%s\n' "${IMAGES[@]}" | sort -u))
-
-          if [ ${#UNIQUE_IMAGES[@]} -eq 0 ]; then
+          if [ ${#IMAGES[@]} -eq 0 ]; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
             echo "images=[]" >> $GITHUB_OUTPUT
           else
-            JSON_ARRAY=$(printf '%s\n' "${UNIQUE_IMAGES[@]}" | jq -R . | jq -s -c .)
+            JSON_ARRAY=$(printf '%s\n' "${IMAGES[@]}" | jq -R . | jq -s -c .)
             echo "has_changes=true" >> $GITHUB_OUTPUT
             echo "images=$JSON_ARRAY" >> $GITHUB_OUTPUT
+            echo "Detected images: ${IMAGES[*]}"
           fi
-
-          echo "Detected images: ${UNIQUE_IMAGES[*]}"
-        env:
-          GH_TOKEN: ${{ github.token }}
 
   hadolint:
     needs: detect-changes
@@ -76,4 +82,3 @@ jobs:
           sarif_file: hadolint-${{ matrix.image }}.sarif
           category: hadolint-${{ matrix.image }}
         if: always()
-

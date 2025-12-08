@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1.12.0
+ARG UPSTREAM_TAG
 FROM docker.io/nginxinc/nginx-unprivileged:${UPSTREAM_TAG} AS nginx-image
 
 # We use the same image as target image for the build for simplicity, even though we need to change user
@@ -38,5 +39,6 @@ COPY --from=builder /nginx-src/objs/ngx_http_vhost_traffic_status_module.so /usr
 RUN mkdir -p /etc/nginx/modules-enabled && \
     echo "load_module modules/ngx_http_vhost_traffic_status_module.so;" > /etc/nginx/modules-enabled/vts.conf
 
+# Dot not run as root
 USER nginx
 ENTRYPOINT ["/usr/sbin/nginx"]
