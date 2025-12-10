@@ -83,7 +83,7 @@ jobs:
   build:
     needs: detect-changes
     if: needs.detect-changes.outputs.has_changes == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, amd64, xxl]
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
@@ -109,9 +109,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # See: https://docs.docker.com/build/ci/github-actions/reproducible-builds/
+      - name: Get Git commit timestamps
+        id: commit-ts
+        run: echo "ts=$(git log -1 --pretty=%ct ${{ matrix.image }})" >> $GITHUB_OUTPUT
+
       - name: Build and push Docker image
         id: push
         uses: docker/build-push-action@v6
+        env:
+          SOURCE_DATE_EPOCH: ${{ steps.commit-ts.outputs.ts }}
         with:
           context: ./${{ matrix.image }}
           file: ./${{ matrix.image }}/Containerfile
