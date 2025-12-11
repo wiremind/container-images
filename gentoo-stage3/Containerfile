@@ -1,0 +1,76 @@
+# syntax=docker/dockerfile:1.20.0
+
+# This stage will download, verify and extract the stage3 tarball
+FROM docker.io/library/debian:trixie AS builder
+
+# hadolint ignore=DL3002
+USER root
+SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
+WORKDIR /gentoo
+
+ARG ARCH=amd64
+ARG UPSTREAM_TAG
+ARG TIMESTAMP="20251130T164554Z"
+ARG DIST="https://distfiles.gentoo.org/releases/${ARCH}/autobuilds/current-stage3-${ARCH}-${UPSTREAM_TAG}"
+ARG STAGE3="stage3-${ARCH}-${UPSTREAM_TAG}-${TIMESTAMP}.tar.xz"
+ARG STAGE3_URL="${DIST}/${STAGE3}"
+
+# See https://wiki.gentoo.org/wiki/Handbook:AMD64/Installation/Stage
+RUN <<-EOF
+    # Install dependencies
+    apt-get update
+    apt-get upgrade -y
+    apt-get install -y --no-install-recommends \
+        ca-certificates=20250419 \
+        curl=8.14.1-2+deb13u2 \
+        gnupg=2.4.7-21 \
+        xz-utils=5.8.1-1
+
+    # Setup GPG
+    # See https://www.gentoo.org/downloads/signatures/
+    curl -sfLo - "https://qa-reports.gentoo.org/output/service-keys.gpg" | gpg --import
+    gpg --list-keys
+
+    # Get stage3 files
+    curl -s --remote-name-all "${STAGE3_URL}{,.CONTENTS.gz,.asc,.DIGESTS,.sha256}"
+
+    # GPG check
+    gpg --verify ${STAGE3}.asc
+    gpg --verify ${STAGE3}.DIGESTS
+    gpg --verify ${STAGE3}.sha256
+
+    # Check image integrity
+    openssl dgst -r -sha512 ${STAGE3}
+    openssl dgst -r -blake2b512 ${STAGE3}
+    sha256sum -c ${STAGE3}.sha256
+
+    # Extract stage3
+    tar xpf "${STAGE3}" --xattrs-include='*.*' --numeric-owner || true
+
+    # Clean up
+    rm -f ${STAGE3}*
+EOF
+
+
+# This stage will make a base gentoo toolchain workable
+FROM scratch AS toolchain-nocustomized
+
+ARG ARCH=amd64
+
+WORKDIR /
+COPY --from=builder /gentoo/ /
+
+# hadolint ignore=DL3002
+USER root
+SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
+
+# Portage settings
+RUN <<-EOF
+    # XXX COPY does not preserve empty directories...
+    mkdir -p /var/db/repos/gentoo /var/{log,tmp}/portage
+
+    # Download portage tree
+    emerge-webrsync --quiet
+EOF
+
+ENTRYPOINT ["/bin/bash"]
