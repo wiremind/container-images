@@ -23,7 +23,7 @@ jobs:
       has_images: ${{ steps.matrix.outputs.has_images }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Build matrix from all images
         id: matrix
@@ -67,7 +67,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@0.33.1
