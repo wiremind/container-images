@@ -10,7 +10,7 @@ SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
 
 ARG TARGETARCH
 ARG UPSTREAM_TAG
-ARG TIMESTAMP="20251130T164554Z"
+ARG TIMESTAMP="20260111T160052Z"
 ARG DIST="https://distfiles.gentoo.org/releases/${TARGETARCH}/autobuilds/current-stage3-${TARGETARCH}-${UPSTREAM_TAG}"
 ARG STAGE3="stage3-${TARGETARCH}-${UPSTREAM_TAG}-${TIMESTAMP}.tar.xz"
 ARG STAGE3_URL="${DIST}/${STAGE3}"
