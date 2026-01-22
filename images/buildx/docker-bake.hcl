@@ -4,7 +4,7 @@ variable "REGISTRY" {
 
 # See: https://github.com/docker/buildx
 variable "BUILDX_VERSIONS" {
-  default = ["v0.30.1"]
+  default = ["v0.30.1", "v0.31.0"]
 }
 
 group "default" {
