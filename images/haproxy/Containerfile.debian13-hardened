@@ -1,4 +1,4 @@
-# syntax=docker.io/docker/dockerfile-upstream:1.20.0
+# syntax=docker.io/docker/dockerfile-upstream:1.21.0
 
 ARG UPSTREAM_TAG=3.3.1-debian13
 FROM --platform=${BUILDPLATFORM} dhi.io/haproxy:${UPSTREAM_TAG}-dev AS builder
@@ -12,15 +12,16 @@ ARG UID=99
 ARG GID=99
 
 ENV SYSTEM_DEPS="passwd"
+ENV BUILD_DEPS="curl gzip tar"
 ENV PRODUCTION_DEPS="ca-certificates lua-json"
 
 # Setup user & group
 # hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-<<-EOF
+    <<-EOF
     apt-get update -q
-    apt-get install -yq --no-install-recommends ${SYSTEM_DEPS}
+    apt-get install -yq --no-install-recommends ${SYSTEM_DEPS} ${BUILD_DEPS}
 
     # Create haproxy user
     groupadd --gid ${GID} haproxy
@@ -31,7 +32,7 @@ EOF
 # hadolint ignore=DL3008,SC2046
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-<<-EOF
+    <<-EOF
   # Download .deb packages for production dependencies and all their dependencies
   apt-get download $(apt-cache depends --recurse --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances ${PRODUCTION_DEPS} | grep "^\w")
 
@@ -40,6 +41,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
   # Extract all .deb files to /tmp/rootfs (will be copied to production stage)
   for file in *.deb; do dpkg -x "$file" /tmp/rootfs; done
+EOF
+
+# Additional data: GeoIP + IA user-agent lists
+RUN <<-EOF
+  mkdir -p /etc/geoip/countries
+  curl -sSL https://www.ipdeny.com/ipblocks/data/countries/all-zones.tar.gz | tar -xzf - -C /etc/geoip/countries/
+
+  mkdir -p /etc/ia
+  curl -sSL "https://raw.githubusercontent.com/ai-robots-txt/ai.robots.txt/refs/heads/main/haproxy-block-ai-bots.txt" > /etc/ia/useragent.lst
 EOF
 
 
@@ -57,5 +67,9 @@ USER haproxy
 
 # Copy system libs and deps
 COPY --from=builder /tmp/rootfs /
+
+# Copy geo-blocking & IA country files
+COPY --from=builder /etc/geoip /etc/geoip
+COPY --from=builder /etc/ia /etc/ia
 
 ENTRYPOINT ["/opt/haproxy/bin/haproxy"]
