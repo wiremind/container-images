@@ -1,6 +1,6 @@
 # syntax=docker.io/docker/dockerfile-upstream:1.20.0
 
-ARG UPSTREAM_TAG=3.3.1-trixie
+ARG UPSTREAM_TAG=3.3.2-trixie
 FROM --platform=${BUILDPLATFORM} docker.io/library/haproxy:${UPSTREAM_TAG} AS haproxy
 
 USER root
