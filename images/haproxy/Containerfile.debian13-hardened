@@ -1,6 +1,6 @@
 # syntax=docker.io/docker/dockerfile-upstream:1.21.0
 
-ARG UPSTREAM_TAG=3.3.1-debian13
+ARG UPSTREAM_TAG=3.3.3-debian13
 FROM --platform=${BUILDPLATFORM} dhi.io/haproxy:${UPSTREAM_TAG}-dev AS builder
 
 # hadolint ignore=DL3002
