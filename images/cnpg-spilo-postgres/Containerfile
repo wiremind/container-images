@@ -1,13 +1,60 @@
 # syntax=docker.io/docker/dockerfile-upstream:1.20.0
 
 ARG UPSTREAM_TAG=17-standard-trixie
+FROM --platform=${BUILDPLATFORM} ghcr.io/cloudnative-pg/postgresql:${UPSTREAM_TAG} AS builder
+
+# hadolint ignore=DL3002
+USER root
+SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
+
+ARG PG_MAJOR=17
+ARG DESTDIR=/opt/extensions
+
+# Build bg_mon and pg_auth_mon from source (no apt packages available).
+# Both repos have no release tags; using latest master (not pinned, same approach as Spilo).
+# hadolint ignore=DL3008
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    --mount=type=cache,target=/tmp/build,id=pg-ext-src \
+<<-EOF
+    apt-get update -q
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        postgresql-server-dev-${PG_MAJOR} \
+        git ca-certificates \
+        libevent-dev \
+        libcurl4-openssl-dev
+
+    if [ -d /tmp/build/bg_mon/.git ]; then
+        git -C /tmp/build/bg_mon fetch origin
+        git -C /tmp/build/bg_mon reset --hard origin/master
+    else
+        git clone --depth 1 https://github.com/zalando-pg/bg_mon.git /tmp/build/bg_mon
+    fi
+    make -C /tmp/build/bg_mon USE_PGXS=1 DESTDIR=${DESTDIR} clean install-strip
+
+    if [ -d /tmp/build/pg_auth_mon/.git ]; then
+        git -C /tmp/build/pg_auth_mon fetch origin
+        git -C /tmp/build/pg_auth_mon reset --hard origin/master
+    else
+        git clone --depth 1 https://github.com/zalando-pg/pg_auth_mon.git /tmp/build/pg_auth_mon
+    fi
+    make -C /tmp/build/pg_auth_mon USE_PGXS=1 DESTDIR=${DESTDIR} clean install-strip
+EOF
+
+# ---------------------------------------------------------------------------
 FROM --platform=${BUILDPLATFORM} ghcr.io/cloudnative-pg/postgresql:${UPSTREAM_TAG}
 
 USER root
 SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
 
 ARG PG_MAJOR=17
+ARG DESTDIR=/opt/extensions
 
+# Copy compiled extensions from builder
+COPY --from=builder ${DESTDIR}/usr/ /usr/
+
+# Install apt extensions + runtime deps for bg_mon and pg_auth_mon
 # hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -20,7 +67,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         postgresql-${PG_MAJOR}-pg-stat-kcache \
         postgresql-${PG_MAJOR}-set-user \
         postgresql-${PG_MAJOR}-hypopg \
-        postgresql-${PG_MAJOR}-pgextwlist
+        postgresql-${PG_MAJOR}-pgextwlist \
+        postgresql-${PG_MAJOR}-timescaledb \
+        libevent-2.1-7t64 \
+        libevent-pthreads-2.1-7t64 \
+        libcurl4t64
 EOF
 
 USER 26
