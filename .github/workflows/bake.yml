@@ -123,7 +123,9 @@ jobs:
           echo "$METADATA" | jq -r '
             to_entries[] |
             select(.value["containerimage.digest"]) |
-            "\(.value["image.name"])@\(.value["containerimage.digest"])"
+            .value["containerimage.digest"] as $digest |
+            (.value["image.name"] | split(",")[]) |
+            "\(.)@\($digest)"
           ' | while read -r image_ref; do
             echo "Signing: $image_ref"
             cosign sign --yes --key env://COSIGN_PRIVATE_KEY \
