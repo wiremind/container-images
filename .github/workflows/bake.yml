@@ -2,7 +2,8 @@ name: Build with Bake
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - "images/**"
   workflow_dispatch:
@@ -101,8 +102,7 @@ jobs:
         env:
           SOURCE_DATE_EPOCH: ${{ steps.source-date.outputs.epoch }}
         with:
-          source: .
-          workdir: ./images/${{ matrix.image }}
+          source: ./images/${{ matrix.image }}
           files: docker-bake.hcl
           push: true
           pull: true
@@ -117,7 +117,7 @@ jobs:
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
-        run: |
+        run: |-
           METADATA='${{ steps.bake.outputs.metadata }}'
 
           echo "$METADATA" | jq -r '
