@@ -1,6 +1,6 @@
-# syntax=docker.io/docker/dockerfile-upstream:1.21.0
+# syntax=docker.io/docker/dockerfile-upstream:1.22.0
 
-ARG UPSTREAM_TAG=3.3.1-debian13
+ARG UPSTREAM_TAG=3.3.5-debian13
 FROM --platform=${BUILDPLATFORM} dhi.io/haproxy:${UPSTREAM_TAG}-dev AS builder
 
 # hadolint ignore=DL3002
@@ -17,22 +17,18 @@ ENV PRODUCTION_DEPS="ca-certificates lua-json"
 
 # Setup user & group
 # hadolint ignore=DL3008
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    <<-EOF
-    apt-get update -q
-    apt-get install -yq --no-install-recommends ${SYSTEM_DEPS} ${BUILD_DEPS}
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked <<-EOF
+apt-get update -q
+apt-get install -yq --no-install-recommends ${SYSTEM_DEPS} ${BUILD_DEPS}
 
-    # Create haproxy user
-    groupadd --gid ${GID} haproxy
-    useradd --uid ${UID} --gid ${GID} --home-dir /var/lib/haproxy --create-home --shell /sbin/nologin haproxy
+# Create haproxy user
+groupadd --gid ${GID} haproxy
+useradd --uid ${UID} --gid ${GID} --home-dir /var/lib/haproxy --create-home --shell /sbin/nologin haproxy
 EOF
 
 # Build rootfs for runtime
 # hadolint ignore=DL3008,SC2046
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    <<-EOF
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked <<-EOF
   # Download .deb packages for production dependencies and all their dependencies
   apt-get download $(apt-cache depends --recurse --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances ${PRODUCTION_DEPS} | grep "^\w")
 
@@ -45,11 +41,11 @@ EOF
 
 # Additional data: GeoIP + IA user-agent lists
 RUN <<-EOF
-  mkdir -p /etc/geoip/countries
-  curl -sSL https://www.ipdeny.com/ipblocks/data/countries/all-zones.tar.gz | tar -xzf - -C /etc/geoip/countries/
+mkdir -p /etc/geoip/countries
+curl -sSL https://www.ipdeny.com/ipblocks/data/countries/all-zones.tar.gz | tar -xzf - -C /etc/geoip/countries/
 
-  mkdir -p /etc/ia
-  curl -sSL "https://raw.githubusercontent.com/ai-robots-txt/ai.robots.txt/refs/heads/main/haproxy-block-ai-bots.txt" > /etc/ia/useragent.lst
+mkdir -p /etc/ia
+curl -sSL "https://raw.githubusercontent.com/ai-robots-txt/ai.robots.txt/refs/heads/main/haproxy-block-ai-bots.txt" > /etc/ia/useragent.lst
 EOF
 
 
