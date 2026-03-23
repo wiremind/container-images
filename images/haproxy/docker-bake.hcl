@@ -4,7 +4,7 @@ variable "REGISTRY" {
 
 // Debian versions (HAProxy version only, e.g., "2.8.18", "3.0.14")
 variable "DEBIAN_VERSIONS" {
-  default = ["2.8.19", "3.0.18", "3.2.14", "3.3.5"]
+  default = ["2.8.20", "3.0.19", "3.1.17", "3.2.15", "3.3.6"]
 }
 
 group "default" {
