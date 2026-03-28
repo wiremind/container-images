@@ -2,9 +2,12 @@ name: Security Scan
 
 on:
   workflow_run:
-    workflows: ["Build with Bake"]
-    types: [completed]
-    branches: [main]
+    workflows:
+      - "Build with Bake"
+    types:
+      - completed
+    branches:
+      - main
   schedule:
     # Run weekly on Sundays at 00:00 UTC
     - cron: "0 0 * * 0"
@@ -76,7 +79,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@0.34.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: ${{ matrix.image }}
           format: sarif
