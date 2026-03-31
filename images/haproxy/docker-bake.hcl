@@ -2,9 +2,14 @@ variable "REGISTRY" {
   default = "ghcr.io/wiremind"
 }
 
-// Debian versions (HAProxy version only, e.g., "2.8.18", "3.0.14")
-variable "DEBIAN_VERSIONS" {
-  default = ["2.8.20", "3.0.19", "3.2.15", "3.3.6"]
+// HAProxy versions used across targets (e.g., "2.8.18", "3.0.14")
+variable "HAPROXY_VERSIONS" {
+  default = [
+    "2.8.20", # renovate: datasource=docker depName=docker.io/library/haproxy
+    "3.0.19", # renovate: datasource=docker depName=docker.io/library/haproxy
+    "3.2.15", # renovate: datasource=docker depName=docker.io/library/haproxy
+    "3.3.6",  # renovate: datasource=docker depName=docker.io/library/haproxy
+  ]
 }
 
 group "default" {
@@ -13,7 +18,7 @@ group "default" {
 
 target "debian13" {
   name       = "debian13-${replace(v, ".", "-")}"
-  matrix     = { v = DEBIAN_VERSIONS }
+  matrix     = { v = HAPROXY_VERSIONS }
   context    = "."
   dockerfile = "Containerfile.debian13"
   tags       = ["${REGISTRY}/haproxy:${v}-debian13"]
@@ -23,7 +28,7 @@ target "debian13" {
 
 target "debian13-hardened" {
   name       = "debian13-hardened-${replace(v, ".", "-")}"
-  matrix     = { v = DEBIAN_VERSIONS }
+  matrix     = { v = HAPROXY_VERSIONS }
   context    = "."
   dockerfile = "Containerfile.debian13-hardened"
   tags       = ["${REGISTRY}/haproxy:${v}-debian13-hardened"]

@@ -1,60 +1,59 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    ":semanticCommits"
-  ],
-  "labels": [
-    "dependencies"
-  ],
+  "extends": ["config:recommended", ":semanticCommits"],
+  "labels": ["dependencies"],
   "packageRules": [
     {
-      "matchManagers": [
-        "github-actions"
-      ],
-      "labels": [
-        "dependencies",
-        "github-actions"
-      ],
+      "matchManagers": ["github-actions"],
+      "labels": ["dependencies", "github-actions"],
       "commitMessagePrefix": "ci:"
     },
     {
-      "matchManagers": [
-        "dockerfile"
-      ],
-      "labels": [
-        "dependencies",
-        "docker"
-      ],
+      "matchManagers": ["dockerfile"],
+      "labels": ["dependencies", "docker"],
       "commitMessagePrefix": "deps(docker):"
     },
     {
-      "matchManagers": [
-        "custom.regex"
-      ],
-      "labels": [
-        "dependencies",
-        "versions"
-      ],
+      "matchManagers": ["custom.regex"],
+      "labels": ["dependencies", "versions"],
       "commitMessagePrefix": "deps(versions):"
     },
     {
       "matchDatasources": ["docker"],
       "matchUpdateTypes": ["major", "minor"],
       "enabled": false
+    },
+    {
+      "description": "Only patch updates for docker-bake.hcl versions",
+      "matchFileNames": ["**/docker-bake.hcl"],
+      "matchUpdateTypes": ["major", "minor"],
+      "enabled": false
+    },
+    {
+      "description": "Automerge patch updates for docker-bake.hcl",
+      "matchFileNames": ["**/docker-bake.hcl"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
     }
   ],
   "customManagers": [
     {
       "customType": "regex",
       "description": "Update versions in versions.yaml files",
-      "managerFilePatterns": [
-        "/(^|/)versions\\.yaml$/"
-      ],
+      "managerFilePatterns": ["/(^|/)versions\\.yaml$/"],
       "matchStrings": [
         "- \"(?<currentValue>[^\"]+)\"\\s*#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)"
       ],
       "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Update versions in docker-bake.hcl files",
+      "managerFilePatterns": ["/(^|/)docker-bake\\.hcl$/"],
+      "matchStrings": [
+        "\"(?<currentValue>[\\d.]+)\"[,\\s]*#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)"
+      ],
+      "versioningTemplate": "semver"
     }
   ]
 }
