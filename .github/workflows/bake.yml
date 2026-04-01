@@ -104,6 +104,7 @@ jobs:
           files: docker-bake.hcl
           push: true
           pull: true
+          # NB: provenance and sbom are causing "unknown/unknown" images, just cosmetic. Non-issue.
           provenance: true
           sbom: true
           set: |
