@@ -1,0 +1,29 @@
+# syntax=docker.io/docker/dockerfile-upstream:1.23.0
+
+ARG SPOA_BOUNCER_VERSION=0.3.0
+FROM docker.io/library/debian:trixie-slim AS downloader
+
+# hadolint ignore=DL3002
+USER root
+SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
+
+# Install deps
+# hadolint ignore=DL3008
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked <<-EOF
+apt-get update -q
+apt-get install -y --no-install-recommends curl ca-certificates
+EOF
+
+# Download GeoLite2 databases
+WORKDIR /geolite2
+
+ARG GEOLITE_REPO=github.com/P3TERX/GeoLite.mmdb
+ARG GEOLITE_VERSION=2026.04.01
+
+RUN curl -fsSL --remote-name-all "https://${GEOLITE_REPO}/releases/download/${GEOLITE_VERSION}/GeoLite2-{ASN,City,Country}.mmdb"
+
+
+# Add GeoLite2 databases to spoa-bouncer image, do not modify anything else.
+FROM ghcr.io/crowdsecurity/spoa-bouncer:v${SPOA_BOUNCER_VERSION} AS spoa-bouncer
+
+COPY --from=downloader /geolite2/GeoLite2-*.mmdb /var/lib/crowdsec/data/
