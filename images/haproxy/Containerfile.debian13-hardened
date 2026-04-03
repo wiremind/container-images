@@ -10,6 +10,8 @@ ENV DEBCONF_NOWARNINGS="yes"
 USER root
 SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
 
+ARG TARGETARCH
+
 # Default UID/GID for haproxy user
 ARG UID=99
 ARG GID=99

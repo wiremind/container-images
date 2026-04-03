@@ -9,6 +9,8 @@ ENV DEBCONF_NOWARNINGS="yes"
 USER root
 SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
 
+ARG TARGETARCH
+
 # lua-json is needed to use auth-url & auth-signin with haproxy-ingress
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=apt-cache-$TARGETARCH --mount=type=cache,target=/var/lib/apt,sharing=locked,id=apt-lib-$TARGETARCH <<-EOF
 apt-get update -q

@@ -11,6 +11,8 @@ FROM nginx-image AS builder
 USER root
 SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
 
+ARG TARGETARCH
+
 # Install build dependencies
 # hadolint ignore=DL3018
 RUN --mount=type=cache,target=/var/cache/apk,sharing=locked,id=apk-cache-$TARGETARCH apk add \
