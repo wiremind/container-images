@@ -3,6 +3,9 @@
 ARG SPOA_BOUNCER_VERSION=0.3.0
 FROM docker.io/library/debian:trixie-slim AS downloader
 
+ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBCONF_NOWARNINGS="yes"
+
 # hadolint ignore=DL3002
 USER root
 SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
