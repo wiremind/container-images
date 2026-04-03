@@ -18,5 +18,5 @@ target "debian13" {
   dockerfile = "Containerfile.debian13"
   tags       = ["${REGISTRY}/buildx:${v}-debian13"]
   args       = { BUILDX_VERSION = "${v}" }
-  platforms  = ["linux/amd64"]
+  platforms  = ["linux/amd64", "linux/arm64"]
 }
