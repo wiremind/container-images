@@ -135,17 +135,30 @@ jobs:
         run: |-
           METADATA='${{ steps.bake.outputs.metadata }}'
 
-          echo "$METADATA" | jq -r '
+          # Extract image references and sign each
+          SIGN_FAILED=0
+          for image_ref in $(echo "$METADATA" | jq -r '
             to_entries[] |
-            select(.value["containerimage.digest"]) |
+            select(.value["containerimage.digest"] and .value["image.name"]) |
             .value["containerimage.digest"] as $digest |
             (.value["image.name"] | split(",")[]) |
             "\(.)@\($digest)"
-          ' | while read -r image_ref; do
+          ' | sort -u); do
+            [ -z "$image_ref" ] && continue
             echo "Signing: $image_ref"
-            cosign sign --yes --key env://COSIGN_PRIVATE_KEY \
+
+            if cosign sign --yes --key env://COSIGN_PRIVATE_KEY \
               -a "repo=${{ github.server_url }}/${{ github.repository }}" \
               -a "ref=${{ github.ref }}" \
               -a "sha=${{ github.sha }}" \
-              "$image_ref"
+              "$image_ref"; then
+              echo "Signed: $image_ref"
+            else
+              echo "::warning::Failed to sign $image_ref"
+              SIGN_FAILED=1
+            fi
           done
+
+          if [ "$SIGN_FAILED" -eq 1 ]; then
+            echo "::warning::Some images failed to sign (may be attestation artifacts)"
+          fi
