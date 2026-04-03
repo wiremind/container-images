@@ -10,6 +10,8 @@ ENV DEBCONF_NOWARNINGS="yes"
 USER root
 SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
 
+ARG TARGETARCH
+
 # Install deps
 # hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=apt-cache-$TARGETARCH --mount=type=cache,target=/var/lib/apt,sharing=locked,id=apt-lib-$TARGETARCH <<-EOF
