@@ -14,12 +14,12 @@ jobs:
     permissions:
       contents: read
     container:
-      image: ghcr.io/renovatebot/renovate:42
+      image: ghcr.io/renovatebot/renovate:43
       options: --user 0
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
       - name: Validate configuration
-        run: |
+        run: |-
           renovate-config-validator --strict renovate.json
