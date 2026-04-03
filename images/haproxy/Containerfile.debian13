@@ -1,7 +1,10 @@
 # syntax=docker.io/docker/dockerfile-upstream:1.23.0
 
 ARG UPSTREAM_TAG=3.3.6-trixie
-FROM --platform=${BUILDPLATFORM} docker.io/library/haproxy:${UPSTREAM_TAG} AS haproxy
+FROM docker.io/library/haproxy:${UPSTREAM_TAG} AS haproxy
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBCONF_NOWARNINGS="yes"
 
 USER root
 SHELL ["/bin/bash", "-exo", "pipefail", "-c"]

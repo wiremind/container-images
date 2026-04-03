@@ -1,7 +1,10 @@
 # syntax=docker.io/docker/dockerfile-upstream:1.23.0
 
 ARG UPSTREAM_TAG=3.3.6-debian13
-FROM --platform=${BUILDPLATFORM} dhi.io/haproxy:${UPSTREAM_TAG}-dev AS builder
+FROM dhi.io/haproxy:${UPSTREAM_TAG}-dev AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBCONF_NOWARNINGS="yes"
 
 # hadolint ignore=DL3002
 USER root
@@ -49,7 +52,7 @@ curl -sSL "https://raw.githubusercontent.com/ai-robots-txt/ai.robots.txt/refs/he
 EOF
 
 
-FROM --platform=${BUILDPLATFORM} dhi.io/haproxy:${UPSTREAM_TAG}
+FROM dhi.io/haproxy:${UPSTREAM_TAG}
 
 USER root
 
