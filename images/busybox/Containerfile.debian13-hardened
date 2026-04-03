@@ -3,5 +3,8 @@
 ARG UPSTREAM_TAG=1.37-debian13
 FROM dhi.io/busybox:${UPSTREAM_TAG}
 
+ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBCONF_NOWARNINGS="yes"
+
 USER nonroot
 ENTRYPOINT ["/bin/sh"]

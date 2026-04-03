@@ -1,6 +1,9 @@
-# syntax=docker.io/docker/dockerfile-upstream:1.20.0
+# syntax=docker.io/docker/dockerfile-upstream:1.23.0
 
-FROM --platform=${BUILDPLATFORM} docker.io/library/debian:trixie-slim
+FROM docker.io/library/debian:trixie-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBCONF_NOWARNINGS="yes"
 
 USER root
 SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
@@ -15,34 +18,31 @@ ARG UID=1001
 ARG GID=1001
 
 # hadolint ignore=DL3008
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-<<-EOF
-	apt-get update -q
-	apt-get install -yq --no-install-recommends passwd coreutils curl ca-certificates unzip jq
-	mkdir -p /usr/local/bin
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=apt-cache-$TARGETARCH --mount=type=cache,target=/var/lib/apt,sharing=locked,id=apt-lib-$TARGETARCH <<-EOF
+apt-get update -q
+apt-get install -yq --no-install-recommends passwd coreutils curl ca-certificates unzip jq
+mkdir -p /usr/local/bin
 
-	# Install tofu
-	curl -sLO "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_linux_${TARGETARCH}.zip"
-	curl -sLO "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_SHA256SUMS"
-	grep "tofu_${TOFU_VERSION}_linux_${TARGETARCH}.zip" "tofu_${TOFU_VERSION}_SHA256SUMS" | sha256sum --strict --check -
-	unzip "tofu_${TOFU_VERSION}_linux_${TARGETARCH}.zip" tofu
-	chmod +x tofu
-	mv tofu /usr/local/bin/tofu
-	rm "tofu_${TOFU_VERSION}_linux_${TARGETARCH}.zip" "tofu_${TOFU_VERSION}_SHA256SUMS"
+# Install tofu
+curl -sLO "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_linux_${TARGETARCH}.zip"
+curl -sLO "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_SHA256SUMS"
+grep "tofu_${TOFU_VERSION}_linux_${TARGETARCH}.zip" "tofu_${TOFU_VERSION}_SHA256SUMS" | sha256sum --strict --check -
+unzip "tofu_${TOFU_VERSION}_linux_${TARGETARCH}.zip" tofu
+chmod +x tofu
+mv tofu /usr/local/bin/tofu
+rm "tofu_${TOFU_VERSION}_linux_${TARGETARCH}.zip" "tofu_${TOFU_VERSION}_SHA256SUMS"
 
-	# Install kubectl
-	curl -sL --remote-name-all "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl{,.sha256}"
-	sed -i 's|$|  kubectl|' kubectl.sha256
-	sha256sum --strict --check kubectl.sha256
-	chmod +x kubectl
-	mv kubectl /usr/local/bin/kubectl
-	rm kubectl.sha256
+# Install kubectl
+curl -sL --remote-name-all "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl{,.sha256}"
+sed -i 's|$|  kubectl|' kubectl.sha256
+sha256sum --strict --check kubectl.sha256
+chmod +x kubectl
+mv kubectl /usr/local/bin/kubectl
+rm kubectl.sha256
 
-	groupadd --gid ${GID} tofuuser
-	useradd --uid ${UID} --gid ${GID} --home-dir /home/tofuuser --create-home --shell /sbin/nologin tofuuser
+groupadd --gid ${GID} tofuuser
+useradd --uid ${UID} --gid ${GID} --home-dir /home/tofuuser --create-home --shell /sbin/nologin tofuuser
 EOF
 
 USER tofuuser
 WORKDIR /home/tofuuser
-

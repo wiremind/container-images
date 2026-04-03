@@ -1,11 +1,11 @@
-# syntax=docker.io/docker/dockerfile-upstream:1.20.0
+# syntax=docker.io/docker/dockerfile-upstream:1.23.0
 
 ARG UPSTREAM_TAG=1.28.2-alpine
-FROM --platform=${BUILDPLATFORM} docker.io/nginxinc/nginx-unprivileged:${UPSTREAM_TAG} AS nginx-image
+FROM docker.io/nginxinc/nginx-unprivileged:${UPSTREAM_TAG} AS nginx-image
 
 
 # We use the same image as target image for the build for simplicity, even though we need to change user
-FROM --platform=${BUILDPLATFORM} nginx-image AS builder
+FROM nginx-image AS builder
 
 # hadolint ignore=DL3002
 USER root
@@ -13,7 +13,7 @@ SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
 
 # Install build dependencies
 # hadolint ignore=DL3018
-RUN apk add --no-cache \
+RUN --mount=type=cache,target=/var/cache/apk,sharing=locked,id=apk-cache-$TARGETARCH apk add \
     build-base gpg gpg-agent gcc make ca-certificates curl linux-headers \
     pcre-dev zlib-dev openssl-dev
 
@@ -22,37 +22,37 @@ WORKDIR /nginx-src
 
 # Retrieve Nginx source and download VTS module
 RUN <<-EOF
-    NGINX_VERSION_DETECTED=$(nginx -v 2>&1 | grep -Eo 'nginx/[0-9]+\.[0-9]+\.[0-9]+' | sed 's|nginx/||')
+NGINX_VERSION_DETECTED=$(nginx -v 2>&1 | grep -Eo 'nginx/[0-9]+\.[0-9]+\.[0-9]+' | sed 's|nginx/||')
 
-    # Retrieve nginx source
-    curl -fsSL --remote-name-all "https://nginx.org/download/nginx-${NGINX_VERSION_DETECTED}.tar.gz{,.asc}"
+# Retrieve nginx source
+curl -fsSL --remote-name-all "https://nginx.org/download/nginx-${NGINX_VERSION_DETECTED}.tar.gz{,.asc}"
 
-    # Verify signature (see https://nginx.org/en/pgp_keys.html)
-    curl -sfLo - "https://nginx.org/keys/arut.key" | gpg --import
-    curl -sfLo - "https://nginx.org/keys/pluknet.key" | gpg --import
-    curl -sfLo - "https://nginx.org/keys/sb.key" | gpg --import
-    curl -sfLo - "https://nginx.org/keys/thresh.key" | gpg --import
-    curl -sfLo - "https://nginx.org/keys/nginx_signing.key" | gpg --import
+# Verify signature (see https://nginx.org/en/pgp_keys.html)
+curl -sfLo - "https://nginx.org/keys/arut.key" | gpg --import
+curl -sfLo - "https://nginx.org/keys/pluknet.key" | gpg --import
+curl -sfLo - "https://nginx.org/keys/sb.key" | gpg --import
+curl -sfLo - "https://nginx.org/keys/thresh.key" | gpg --import
+curl -sfLo - "https://nginx.org/keys/nginx_signing.key" | gpg --import
 
-    gpg --list-keys
-    gpg --verify "nginx-${NGINX_VERSION_DETECTED}.tar.gz.asc"
+gpg --list-keys
+gpg --verify "nginx-${NGINX_VERSION_DETECTED}.tar.gz.asc"
 
-    # Uncompress sources
-    tar --strip-components=1 -xf "nginx-${NGINX_VERSION_DETECTED}.tar.gz"
+# Uncompress sources
+tar --strip-components=1 -xf "nginx-${NGINX_VERSION_DETECTED}.tar.gz"
 
-    # Retrieve VTS module
-    mkdir -p nginx-module-vts
-    curl -fsSL "https://github.com/vozlt/nginx-module-vts/archive/refs/tags/v${NGINX_VTS_VERSION}.tar.gz" | tar zxv -C nginx-module-vts --strip-components=1
+# Retrieve VTS module
+mkdir -p nginx-module-vts
+curl -fsSL "https://github.com/vozlt/nginx-module-vts/archive/refs/tags/v${NGINX_VTS_VERSION}.tar.gz" | tar zxv -C nginx-module-vts --strip-components=1
 
-    # Compilation
-    NGINX_CONFIGURE_ARGS=$(nginx -V 2>&1 | grep 'configure arguments:' | sed 's/configure arguments: //')
+# Compilation
+NGINX_CONFIGURE_ARGS=$(nginx -V 2>&1 | grep 'configure arguments:' | sed 's/configure arguments: //')
 
-    eval "./configure $NGINX_CONFIGURE_ARGS --add-dynamic-module=nginx-module-vts"
-    make modules
+eval "./configure $NGINX_CONFIGURE_ARGS --add-dynamic-module=nginx-module-vts"
+make modules
 EOF
 
 
-FROM --platform=${BUILDPLATFORM} nginx-image AS production
+FROM nginx-image AS production
 
 USER root
 SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
