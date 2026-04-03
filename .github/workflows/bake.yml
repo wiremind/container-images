@@ -113,6 +113,7 @@ jobs:
           # NB: provenance and sbom are causing "unknown/unknown" images, just cosmetic. Non-issue.
           provenance: "mode=max,version=v1"
           sbom: true
+          # Can’t use `*.annotations.index,manifest:org.opencontainers.image` globally, put them in docker-bake.hcl if needed.
           set: |
             *.cache-from=type=gha,scope=${{ matrix.image }}
             *.cache-to=type=gha,mode=max,scope=${{ matrix.image }}
@@ -126,15 +127,6 @@ jobs:
             *.labels.org.opencontainers.image.licenses=MIT
             *.labels.org.opencontainers.image.ref.name=${{ github.ref_name }}
             *.labels.org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}#readme
-            *.annotations.index,manifest:org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            *.annotations.index,manifest:org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
-            *.annotations.index,manifest:org.opencontainers.image.revision=${{ steps.metadata.outputs.revision }}
-            *.annotations.index,manifest:org.opencontainers.image.created=${{ steps.metadata.outputs.created }}
-            *.annotations.index,manifest:org.opencontainers.image.title=${{ matrix.image }}
-            *.annotations.index,manifest:org.opencontainers.image.vendor=Wiremind
-            *.annotations.index,manifest:org.opencontainers.image.licenses=MIT
-            *.annotations.index,manifest:org.opencontainers.image.ref.name=${{ github.ref_name }}
-            *.annotations.index,manifest:org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}#readme
 
       - name: Sign images with Cosign
         env:
