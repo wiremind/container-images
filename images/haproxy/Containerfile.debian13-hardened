@@ -20,7 +20,7 @@ ENV PRODUCTION_DEPS="ca-certificates lua-json"
 
 # Setup user & group
 # hadolint ignore=DL3008
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked <<-EOF
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=apt-cache-$TARGETARCH --mount=type=cache,target=/var/lib/apt,sharing=locked,id=apt-lib-$TARGETARCH <<-EOF
 apt-get update -q
 apt-get install -yq --no-install-recommends ${SYSTEM_DEPS} ${BUILD_DEPS}
 
@@ -31,7 +31,7 @@ EOF
 
 # Build rootfs for runtime
 # hadolint ignore=DL3008,SC2046
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked <<-EOF
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=apt-cache-$TARGETARCH --mount=type=cache,target=/var/lib/apt,sharing=locked,id=apt-lib-$TARGETARCH <<-EOF
   # Download .deb packages for production dependencies and all their dependencies
   apt-get download $(apt-cache depends --recurse --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances ${PRODUCTION_DEPS} | grep "^\w")
 

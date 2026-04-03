@@ -9,7 +9,11 @@ variable "TOFU_VERSION" {
 
 // kubectl versions to bundle alongside tofu
 variable "KUBECTL_VERSIONS" {
-  default = ["v1.33.0"]
+  default = [
+    "v1.33.10", # renovate: datasource=docker depName=docker.io/library/kubectl
+    "v1.34.6", # renovate: datasource=docker depName=docker.io/library/kubectl
+    "v1.35.3", # renovate: datasource=docker depName=docker.io/library/kubectl
+  ]
 }
 
 group "default" {
@@ -23,5 +27,5 @@ target "debian13" {
   dockerfile = "Containerfile.debian13"
   tags       = ["${REGISTRY}/tofu-kubectl:${TOFU_VERSION}-${k}-debian13"]
   args       = { TOFU_VERSION = TOFU_VERSION, KUBECTL_VERSION = k }
-  platforms  = ["linux/amd64"]
+  platforms  = ["linux/amd64", "linux/arm64"]
 }

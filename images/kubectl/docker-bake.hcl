@@ -18,7 +18,7 @@ target "debian13" {
   dockerfile = "Containerfile.debian13"
   tags       = ["${REGISTRY}/kubectl:${v}-debian13"]
   args       = { UPSTREAM_TAG = v }
-  platforms  = ["linux/amd64"]
+  platforms  = ["linux/amd64", "linux/arm64"]
 }
 
 target "debian13-hardened" {
@@ -28,5 +28,5 @@ target "debian13-hardened" {
   dockerfile = "Containerfile.debian13-hardened"
   tags       = ["${REGISTRY}/kubectl:${v}-debian13-hardened"]
   args       = { UPSTREAM_TAG = v }
-  platforms  = ["linux/amd64"]
+  platforms  = ["linux/amd64", "linux/arm64"]
 }

@@ -17,5 +17,5 @@ target "nginx-vts-exporter" {
   dockerfile = "Containerfile"
   tags       = ["${REGISTRY}/nginx-vts-exporter:${v}"]
   args       = { UPSTREAM_TAG = v }
-  platforms  = ["linux/amd64"]
+  platforms  = ["linux/amd64", "linux/arm64"]
 }
