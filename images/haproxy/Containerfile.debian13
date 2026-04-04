@@ -1,4 +1,4 @@
-# syntax=docker.io/docker/dockerfile-upstream:1.23.0
+# syntax=docker.io/docker/dockerfile:1
 
 ARG UPSTREAM_TAG=3.3.6-trixie
 FROM docker.io/library/haproxy:${UPSTREAM_TAG} AS haproxy
@@ -10,13 +10,18 @@ USER root
 SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
 
 ARG TARGETARCH
+ARG DEBIAN_SNAPSHOT_VERSION="20260405T082808Z"
 
 # lua-json is needed to use auth-url & auth-signin with haproxy-ingress
+# hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=apt-cache-$TARGETARCH --mount=type=cache,target=/var/lib/apt,sharing=locked,id=apt-lib-$TARGETARCH <<-EOF
-apt-get update -q
-apt-get upgrade -y --no-install-recommends
-apt-get install -y --no-install-recommends lua-json=1.3.4-3
+apt-get update -q --snapshot=${DEBIAN_SNAPSHOT_VERSION}
+apt-get install -yq --no-install-recommends --snapshot=${DEBIAN_SNAPSHOT_VERSION} lua-json
 EOF
 
 USER haproxy
 ENTRYPOINT ["/usr/local/sbin/haproxy"]
+CMD ["-db", "-f", "/etc/haproxy"]
+
+STOPSIGNAL SIGUSR1
+EXPOSE 8080/tcp 8443/tcp

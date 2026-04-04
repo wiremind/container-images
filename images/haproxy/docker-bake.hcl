@@ -32,6 +32,9 @@ target "debian13-hardened" {
   context    = "."
   dockerfile = "Containerfile.debian13-hardened"
   tags       = ["${REGISTRY}/haproxy:${v}-debian13-hardened"]
-  args       = { UPSTREAM_TAG = "${v}-debian13" }
+  args       = {
+    UPSTREAM_TAG = "${v}-debian13",
+    DEBIAN_SNAPSHOT_VERSION = "20260405T082808Z",
+  }
   platforms  = ["linux/amd64", "linux/arm64"]
 }
