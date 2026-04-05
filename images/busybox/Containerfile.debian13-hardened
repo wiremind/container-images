@@ -1,4 +1,4 @@
-# syntax=docker.io/docker/dockerfile-upstream:1.23.0
+# syntax=docker.io/docker/dockerfile:1
 
 ARG UPSTREAM_TAG=1.37-debian13
 FROM dhi.io/busybox:${UPSTREAM_TAG}

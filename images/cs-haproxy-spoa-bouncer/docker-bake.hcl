@@ -18,6 +18,9 @@ target "spoa" {
   context    = "."
   dockerfile = "Containerfile"
   tags       = ["${REGISTRY}/cs-haproxy-spoa-bouncer:${v}"]
-  args       = { SPOA_BOUNCER_VERSION = "${v}" }
+  args       = {
+    GEOLITE_VERSION = "2026.04.07",
+    SPOA_BOUNCER_VERSION = "${v}",
+  }
   platforms  = ["linux/amd64", "linux/arm64"]
 }
