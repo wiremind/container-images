@@ -24,11 +24,12 @@ ENV PRODUCTION_DEPS="ca-certificates lua-json"
 
 # hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=apt-cache-$TARGETARCH --mount=type=cache,target=/var/lib/apt,sharing=locked,id=apt-lib-$TARGETARCH <<-EOF
-apt-get update -q --snapshot=${DEBIAN_SNAPSHOT_VERSION}
+apt-get update -o Acquire::Check-Valid-Until=false -q --snapshot=${DEBIAN_SNAPSHOT_VERSION}
 apt-get install -yq --no-install-recommends --snapshot=${DEBIAN_SNAPSHOT_VERSION} ${BUILD_DEPS}
 EOF
 
 # Build rootfs using mmdebstrap
+# hadolint ignore=SC2016
 RUN <<-EOF
 # Get suite codename from current OS
 SUITE=$(. /etc/os-release && echo "${VERSION_CODENAME}")
@@ -42,7 +43,7 @@ fakeroot mmdebstrap \
     --architectures=${TARGETARCH} \
     --include=${PRODUCTION_DEPS// /,} \
     --setup-hook='mkdir -p "$1/etc" "$1${HOME}"' \
-    --setup-hook='echo "${USERNAME}:x:${UID}:${GID}:${USERNAME}}:${HOME}:/sbin/nologin" > "$1/etc/passwd"' \
+    --setup-hook='echo "${USERNAME}:x:${UID}:${GID}:${USERNAME}:${HOME}:/sbin/nologin" > "$1/etc/passwd"' \
     --setup-hook='echo "${USERNAME}:x:${GID}:" > "$1/etc/group"' \
     --aptopt='Apt::Install-Recommends "false"' \
     --aptopt='Apt::Install-Suggests "false"' \
@@ -52,10 +53,6 @@ fakeroot mmdebstrap \
     "https://snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT_VERSION}"
 EOF
 
-# Additional data: GeoIP + IA user-agent lists
-ADD --unpack=true https://www.ipdeny.com/ipblocks/data/countries/all-zones.tar.gz /etc/geoip/countries/
-ADD https://raw.githubusercontent.com/ai-robots-txt/ai.robots.txt/refs/heads/main/haproxy-block-ai-bots.txt /etc/ia/useragent.lst
-
 
 FROM dhi.io/haproxy:${UPSTREAM_TAG}
 
@@ -64,13 +61,20 @@ USER root
 # Copy system libs and deps
 COPY --from=builder /tmp/rootfs /
 
-# Copy geo-blocking & IA country files
-COPY --from=builder /etc/geoip /etc/geoip
-COPY --from=builder /etc/ia /etc/ia
+# Additional data: GeoIP + IA user-agent lists
+# ADD --chmod=0644 --unpack=true https://www.ipdeny.com/ipblocks/data/countries/all-zones.tar.gz /etc/geoip/countries/
+# ADD --chmod=0644 https://raw.githubusercontent.com/ai-robots-txt/ai.robots.txt/refs/heads/main/haproxy-block-ai-bots.txt /etc/ia/useragent.lst
 
 USER haproxy
+WORKDIR /var/lib/haproxy
 ENTRYPOINT ["/opt/haproxy/bin/haproxy"]
 CMD ["-db", "-f", "/etc/haproxy"]
+VOLUME ["/etc/haproxy"]
 
+# HAProxy graceful shutdown
 STOPSIGNAL SIGUSR1
-EXPOSE 8080/tcp 8443/tcp
+# 1936: default stats port
+# 8080: default HTTP port
+# 8443: default HTTPS port
+# 9101: default Prometheus metrics port
+EXPOSE 1936/tcp 8080/tcp 8443/tcp 9101/tcp

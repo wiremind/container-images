@@ -12,8 +12,13 @@ variable "HAPROXY_VERSIONS" {
   ]
 }
 
+# Use fixed Debian snapshot version to ensure reproducible builds (see https://snapshot.debian.org/)
+variable "DEBIAN_SNAPSHOT_VERSION" {
+  default = "20260406T144517Z"
+}
+
 group "default" {
-  targets = ["debian13", "debian13-hardened"]
+  targets = ["debian13", "debian13-dhi", "debian13-gcr"]
 }
 
 target "debian13" {
@@ -22,19 +27,36 @@ target "debian13" {
   context    = "."
   dockerfile = "Containerfile.debian13"
   tags       = ["${REGISTRY}/haproxy:${v}-debian13"]
-  args       = { UPSTREAM_TAG = "${v}-trixie" }
+  args       = {
+    DEBIAN_SNAPSHOT_VERSION = "${DEBIAN_SNAPSHOT_VERSION}",
+    UPSTREAM_TAG = "${v}-trixie",
+  }
   platforms  = ["linux/amd64", "linux/arm64"]
 }
 
-target "debian13-hardened" {
-  name       = "debian13-hardened-${replace(v, ".", "-")}"
+target "debian13-dhi" {
+  name       = "debian13-dhi-${replace(v, ".", "-")}"
   matrix     = { v = HAPROXY_VERSIONS }
   context    = "."
-  dockerfile = "Containerfile.debian13-hardened"
-  tags       = ["${REGISTRY}/haproxy:${v}-debian13-hardened"]
+  dockerfile = "Containerfile.debian13-dhi"
+  tags       = ["${REGISTRY}/haproxy:${v}-debian13-dhi"]
   args       = {
+    DEBIAN_SNAPSHOT_VERSION = "${DEBIAN_SNAPSHOT_VERSION}",
     UPSTREAM_TAG = "${v}-debian13",
-    DEBIAN_SNAPSHOT_VERSION = "20260405T082808Z",
+  }
+  platforms  = ["linux/amd64", "linux/arm64"]
+}
+
+target "debian13-gcr" {
+  name       = "debian13-gcr-${replace(v, ".", "-")}"
+  matrix     = { v = HAPROXY_VERSIONS }
+  context    = "."
+  dockerfile = "Containerfile.debian13-gcr"
+  tags       = ["${REGISTRY}/haproxy:${v}-debian13-gcr"]
+  args       = {
+    BASE = "gcr.io/distroless/base-debian13:nonroot@sha256:a696c7c8545ba9b2b2807ee60b8538d049622f0addd85aee8cec3ec1910de1f9"
+    DEBIAN_SNAPSHOT_VERSION = "${DEBIAN_SNAPSHOT_VERSION}",
+    HAPROXY_VERSION = v,
   }
   platforms  = ["linux/amd64", "linux/arm64"]
 }
