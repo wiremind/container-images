@@ -1,0 +1,128 @@
+# syntax=docker.io/docker/dockerfile:1
+
+# Minimal HAProxy container with static linking for OpenSSL, PCRE2, Lua, zlib, zstd
+# Final image only needs glibc (from distroless base) + HAProxy binary + Lua modules
+
+ARG BASE=gcr.io/distroless/base-debian13:nonroot@sha256:a696c7c8545ba9b2b2807ee60b8538d049622f0addd85aee8cec3ec1910de1f9
+FROM dhi.io/debian-base:trixie-dev AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBCONF_NOWARNINGS="yes"
+
+# hadolint ignore=DL3002
+USER root
+SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
+
+ARG TARGETARCH
+ARG DEBIAN_SNAPSHOT_VERSION="20260405T202926Z"
+
+# All deps for building - static libs will be linked into haproxy binary
+ENV BUILD_DEPS="build-essential libpcre2-dev libssl-dev liblua5.4-dev zlib1g-dev libzstd-dev lua-json"
+
+# hadolint ignore=DL3008
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=apt-cache-$TARGETARCH --mount=type=cache,target=/var/lib/apt,sharing=locked,id=apt-lib-$TARGETARCH <<-EOF
+apt-get update -o Acquire::Check-Valid-Until=false -q --snapshot=${DEBIAN_SNAPSHOT_VERSION}
+apt-get install -yq --no-install-recommends --snapshot=${DEBIAN_SNAPSHOT_VERSION} ${BUILD_DEPS}
+EOF
+
+# Download and build HAProxy
+ARG HAPROXY_VERSION=2.8.20
+ADD https://git.haproxy.org/git/haproxy-${HAPROXY_VERSION%.*}.git#v${HAPROXY_VERSION} /build
+WORKDIR /build
+
+# Build HAProxy
+# - static linking for OpenSSL, PCRE2, Lua, zlib, zstd, libcrypt (USE_LIBCRYPT= to avoid default dynamic linking)
+# - only glibc (libc, libm, libpthread, libdl) remains dynamic
+# - USE_QUIC_OPENSSL_COMPAT needed for HAProxy < 3.3 with OpenSSL even if debian13 has OpenSSL 3.5.5
+#
+# See: https://github.com/haproxy/haproxy/blob/master/INSTALL
+#
+# hadolint ignore=SC2046
+RUN <<-EOF
+# Determine library path based on architecture
+case "${TARGETARCH}" in
+    amd64) LIB_DIR="/usr/lib/x86_64-linux-gnu" ;;
+    arm64) LIB_DIR="/usr/lib/aarch64-linux-gnu" ;;
+    *)     LIB_DIR="/usr/lib/${TARGETARCH}-linux-gnu" ;;
+esac
+
+# Override *_LDFLAGS to force static linking (ADDLIB comes too late in link order)
+make -j$(nproc) TARGET=linux-glibc \
+    USE_PCRE2=1 USE_PCRE2_JIT=1 USE_STATIC_PCRE2=1 \
+    USE_OPENSSL=1 USE_QUIC=1 USE_QUIC_OPENSSL_COMPAT=1 \
+    SSL_INC=/usr/include \
+    SSL_LDFLAGS="-L${LIB_DIR} -Wl,-Bstatic -lssl -lcrypto -lz -lzstd -Wl,-Bdynamic" \
+    USE_LUA=1 LUA_INC=/usr/include/lua5.4 \
+    LUA_LDFLAGS="-Wl,--export-dynamic -L${LIB_DIR} -Wl,-Bstatic -l:liblua5.4.a -Wl,-Bdynamic -lm -ldl" \
+    USE_LIBCRYPT= \
+    ADDLIB="-Wl,-Bstatic -lcrypt -Wl,-Bdynamic" \
+    USE_ZLIB=1 USE_PROMEX=1 \
+    DEBUG=
+
+strip --strip-all haproxy
+EOF
+
+
+# Final minimal image - distroless/base has glibc + ca-certificates
+FROM ${BASE}
+
+ARG HAPROXY_VERSION
+# hadolint ignore=DL3050
+LABEL \
+    org.opencontainers.image.title="HAProxy" \
+    org.opencontainers.image.description="Minimal HAProxy with static OpenSSL/PCRE2/Lua" \
+    org.opencontainers.image.version="${HAPROXY_VERSION}" \
+    org.opencontainers.image.source="https://github.com/wiremind/container-images"
+
+# Default UID/GID for haproxy user
+ARG UID=99
+ARG GID=99
+
+# Create haproxy user (distroless has no useradd, so we create files directly)
+COPY <<EOF /etc/passwd
+haproxy:x:${UID}:${GID}:haproxy:/var/lib/haproxy:/sbin/nologin
+EOF
+
+COPY <<EOF /etc/group
+haproxy:x:${GID}:
+EOF
+
+# HAProxy binary
+COPY --from=builder /build/haproxy /usr/sbin/haproxy
+
+# libgcc_s.so.1 required for pthread_cancel/pthread_exit unwinding
+COPY --from=builder /usr/lib/*-linux-gnu/libgcc_s.so.1 /usr/lib/
+
+# Lua modules: lua-json (pure Lua) + lua-lpeg (native dependency)
+# Note: Debian's lua-json uses symlinks from 5.4/ -> 5.1/, so copy everything to avoid broken symlinks in distroless
+COPY --from=builder /usr/share/lua/ /usr/share/lua/
+COPY --from=builder /usr/lib/*-linux-gnu/lua/ /usr/lib/lua/
+COPY --from=builder /usr/lib/*-linux-gnu/liblua*.so* /usr/lib/
+
+# Create empty directories owned by haproxy (distroless has no mkdir/chown)
+COPY <<EOF /etc/haproxy/.keep
+EOF
+
+COPY <<EOF /var/run/haproxy/.keep
+EOF
+
+# GeoIP country data + AI bot user-agent blocklist
+# ADD --chmod=0644 --unpack=true https://www.ipdeny.com/ipblocks/data/countries/all-zones.tar.gz /etc/geoip/countries/
+# ADD --chmod=0644 https://raw.githubusercontent.com/ai-robots-txt/ai.robots.txt/refs/heads/main/haproxy-block-ai-bots.txt /etc/ia/useragent.lst
+
+USER haproxy
+WORKDIR /var/lib/haproxy
+ENTRYPOINT ["/usr/sbin/haproxy"]
+CMD ["-db", "-f", "/etc/haproxy"]
+VOLUME ["/etc/haproxy"]
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD ["/usr/sbin/haproxy", "-c", "-f", "/etc/haproxy"]
+
+# HAProxy graceful shutdown
+STOPSIGNAL SIGUSR1
+# 1936: default stats port
+# 8080: default HTTP port
+# 8443: default HTTPS port
+# 9101: default Prometheus metrics port
+EXPOSE 1936/tcp 8080/tcp 8443/tcp 9101/tcp

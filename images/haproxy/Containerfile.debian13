@@ -15,7 +15,7 @@ ARG DEBIAN_SNAPSHOT_VERSION="20260405T082808Z"
 # lua-json is needed to use auth-url & auth-signin with haproxy-ingress
 # hadolint ignore=DL3008
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=apt-cache-$TARGETARCH --mount=type=cache,target=/var/lib/apt,sharing=locked,id=apt-lib-$TARGETARCH <<-EOF
-apt-get update -q --snapshot=${DEBIAN_SNAPSHOT_VERSION}
+apt-get update -o Acquire::Check-Valid-Until=false -q --snapshot=${DEBIAN_SNAPSHOT_VERSION}
 apt-get install -yq --no-install-recommends --snapshot=${DEBIAN_SNAPSHOT_VERSION} lua-json
 EOF
 
@@ -23,5 +23,10 @@ USER haproxy
 ENTRYPOINT ["/usr/local/sbin/haproxy"]
 CMD ["-db", "-f", "/etc/haproxy"]
 
+# HAProxy graceful shutdown
 STOPSIGNAL SIGUSR1
-EXPOSE 8080/tcp 8443/tcp
+# 1936: default stats port
+# 8080: default HTTP port
+# 8443: default HTTPS port
+# 9101: default Prometheus metrics port
+EXPOSE 1936/tcp 8080/tcp 8443/tcp 9101/tcp
