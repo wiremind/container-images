@@ -79,6 +79,21 @@ FROM ghcr.io/wiremind/haproxy:3.3.1-debian13
 
 ## Local Development
 
+### Environment Setup
+
+Shared build variables (e.g., `DEBIAN_SNAPSHOT_VERSION`) are centralized in `.envrc`.
+
+```bash
+# Install direnv: https://direnv.net/docs/installation.html
+# Then allow the .envrc file:
+direnv allow
+
+# Or manually source:
+source .envrc
+```
+
+### Building Images
+
 ```bash
 # Preview what will be built
 docker buildx bake -f images/haproxy/docker-bake.hcl --print
