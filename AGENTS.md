@@ -50,9 +50,23 @@ Images are in `images/<name>/` with:
    # customizations
    ```
 
+## Environment Variables
+
+Shared variables are centralized in `.envrc` (root):
+- `DEBIAN_SNAPSHOT_VERSION` - Debian snapshot for reproducible builds
+
+Usage:
+- **Local**: `direnv allow` or `source .envrc`
+- **CI**: Sourced by `.github/workflows/bake.yml` before builds
+- **Bake**: Variables read via HCL `variable` with empty default (env override)
+- **Containerfile**: Received via `args` in bake target, declared as `ARG` (no default)
+
 ## Local Development
 
 ```bash
+# Load environment
+direnv allow  # or: source .envrc
+
 # Build locally
 docker buildx bake -f images/haproxy/docker-bake.hcl --print  # dry-run
 docker buildx bake -f images/haproxy/docker-bake.hcl          # build
@@ -69,6 +83,7 @@ hadolint images/my-image/Containerfile
 
 ## Key Files
 
+- `.envrc` - Centralized environment variables (DEBIAN_SNAPSHOT_VERSION, etc.)
 - `.github/workflows/bake.yml` - Main build workflow
 - `images/*/docker-bake.hcl` - Bake configs
 - `renovate.json` - Automated updates

@@ -100,6 +100,9 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
+      - name: Load shared environment variables
+        uses: HatsuneMiku3939/direnv-action@v1.1.5
+
       - name: Build and push ${{ matrix.image }}
         id: bake
         uses: docker/bake-action@v7
