@@ -194,25 +194,31 @@ jobs:
       - name: Extract digest mapping
         if: steps.check-platform.outputs.supported == 'true' && github.event_name != 'pull_request'
         id: digests
-        env:
-          METADATA: ${{ steps.bake.outputs.metadata }}
-          PLATFORM_SUFFIX: "-${{ matrix.arch.slug }}"
-        run: |
-          # Create digest file: one line per "tag digest" pair
-          # Strip the platform suffix from tags to get the final tag name
-          # Use printenv to avoid "Argument list too long" with large metadata
-          printenv METADATA | jq -r --arg suffix "$PLATFORM_SUFFIX" '
-            to_entries[] |
-            select(.value["containerimage.digest"] and .value["image.name"]) |
-            .value["containerimage.digest"] as $digest |
-            (.value["image.name"] | split(",")[]) |
-            # Strip platform suffix to get the final tag
-            (if endswith($suffix) then .[:-($suffix | length)] else . end) as $final_tag |
-            "\($final_tag) \($digest)"
-          ' | sort -u > digests-${{ matrix.arch.slug }}.txt
+        uses: actions/github-script@v8
+        with:
+          # Use JS to avoid shell "Argument list too long" with large metadata
+          script: |
+            const fs = require('fs');
+            const metadata = ${{ steps.bake.outputs.metadata }};
+            const suffix = '-${{ matrix.arch.slug }}';
+            const lines = new Set();
 
-          echo "Generated digest mapping (final_tag -> platform_digest):"
-          cat digests-${{ matrix.arch.slug }}.txt
+            for (const [name, value] of Object.entries(metadata)) {
+              const digest = value['containerimage.digest'];
+              const imageName = value['image.name'];
+              if (!digest || !imageName) continue;
+
+              for (const tag of imageName.split(',')) {
+                // Strip platform suffix to get the final tag
+                const finalTag = tag.endsWith(suffix) ? tag.slice(0, -suffix.length) : tag;
+                lines.add(`${finalTag} ${digest}`);
+              }
+            }
+
+            const content = Array.from(lines).sort().join('\n');
+            fs.writeFileSync('digests-${{ matrix.arch.slug }}.txt', content + '\n');
+            console.log('Generated digest mapping (final_tag -> platform_digest):');
+            console.log(content);
 
       - name: Upload digest artifact
         if: steps.check-platform.outputs.supported == 'true' && github.event_name != 'pull_request'
