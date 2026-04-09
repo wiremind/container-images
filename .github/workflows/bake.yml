@@ -152,14 +152,17 @@ jobs:
             exit 1
           fi
 
-          jq --arg suffix "-${{ matrix.arch.slug }}" '
+          # Transform: add platform suffix to tags, fix context/dockerfile paths for repo root execution
+          jq --arg suffix "-${{ matrix.arch.slug }}" --arg imgdir "./images/${{ matrix.image }}" '
             .target |= with_entries(
-              .value.tags |= (if . then map(. + $suffix) else . end)
+              .value.tags |= (if . then map(. + $suffix) else . end) |
+              .value.context |= (if . == "." then $imgdir else ($imgdir + "/" + .) end) |
+              .value.dockerfile |= (if . then ($imgdir + "/" + .) else . end)
             )
           ' bake-original.json > bake-platform.json
 
           echo "Transformed bake config:"
-          jq '.target | to_entries[] | {name: .key, tags: .value.tags}' bake-platform.json
+          jq '.target | to_entries[] | {name: .key, tags: .value.tags, context: .value.context, dockerfile: .value.dockerfile}' bake-platform.json
 
       - name: Build and push ${{ matrix.image }} (${{ matrix.arch.platform }})
         if: steps.check-platform.outputs.supported == 'true'
@@ -168,8 +171,7 @@ jobs:
         env:
           SOURCE_DATE_EPOCH: ${{ steps.metadata.outputs.epoch }}
         with:
-          source: ./images/${{ matrix.image }}
-          files: bake-platform.json
+          files: ./images/${{ matrix.image }}/bake-platform.json
           push: ${{ github.event_name != 'pull_request' }}
           pull: true
           provenance: "mode=max,version=v1"
