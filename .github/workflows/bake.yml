@@ -6,9 +6,11 @@ on:
       - main
     paths:
       - "images/**"
+      - ".envrc"
   pull_request:
     paths:
       - "images/**"
+      - ".envrc"
   workflow_dispatch:
 
 jobs:
@@ -26,17 +28,19 @@ jobs:
       - name: Get changed images
         id: changes
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            # Manual trigger: build all images
-            IMAGES=$(ls -d images/*/ 2>/dev/null | xargs -n1 basename | jq -R -s -c 'split("\n") | map(select(length > 0))')
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            # PR trigger: diff against base branch
-            git fetch origin ${{ github.base_ref }} --depth=1
-            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- images/ | cut -d/ -f2 | sort -u)
-            IMAGES=$(echo "$CHANGED" | grep -v '^$' | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          # Helper: list all images
+          all_images() {
+            ls -d images/*/ 2>/dev/null | xargs -n1 basename | jq -R -s -c 'split("\n") | map(select(length > 0))'
+          }
+
+          ALL_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          ENVRC_CHANGED=$(echo "$ALL_CHANGED" | grep -E '^\.envrc$' || true)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ -n "$ENVRC_CHANGED" ]; then
+            # Manual trigger or .envrc changed: build all images
+            IMAGES=$(all_images)
           else
-            # Push trigger: only changed images
-            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- images/ | cut -d/ -f2 | sort -u)
+            # Push trigger: diff against baseref and extract changed images
+            CHANGED=$(echo "$ALL_CHANGED" | grep '^images/' | cut -d/ -f2 | sort -u)
             IMAGES=$(echo "$CHANGED" | grep -v '^$' | jq -R -s -c 'split("\n") | map(select(length > 0))')
           fi
 
