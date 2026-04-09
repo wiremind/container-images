@@ -152,17 +152,16 @@ jobs:
             exit 1
           fi
 
-          # Transform: add platform suffix to tags, fix context/dockerfile paths for repo root execution
-          jq --arg suffix "-${{ matrix.arch.slug }}" --arg imgdir "./images/${{ matrix.image }}" '
+          # Transform: add platform suffix to tags
+          # Note: context/dockerfile paths stay relative to bake file location (docker resolves them)
+          jq --arg suffix "-${{ matrix.arch.slug }}" '
             .target |= with_entries(
-              .value.tags |= (if . then map(. + $suffix) else . end) |
-              .value.context |= (if . == "." then $imgdir else ($imgdir + "/" + .) end) |
-              .value.dockerfile |= (if . then ($imgdir + "/" + .) else . end)
+              .value.tags |= (if . then map(. + $suffix) else . end)
             )
           ' bake-original.json > bake-platform.json
 
           echo "Transformed bake config:"
-          jq '.target | to_entries[] | {name: .key, tags: .value.tags, context: .value.context, dockerfile: .value.dockerfile}' bake-platform.json
+          jq '.target | to_entries[] | {name: .key, tags: .value.tags}' bake-platform.json
 
       - name: Build and push ${{ matrix.image }} (${{ matrix.arch.platform }})
         if: steps.check-platform.outputs.supported == 'true'
