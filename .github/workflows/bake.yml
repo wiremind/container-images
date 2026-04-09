@@ -291,18 +291,35 @@ jobs:
             # Trim leading space and dedupe
             digests=$(echo "$digests" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ')
 
-            echo "Creating manifest for $tag with digests: $digests"
+            echo "Creating manifest for $tag with index digests: $digests"
 
             # Extract registry/repo from tag
             REPO=$(echo "$tag" | cut -d: -f1)
 
-            # Build imagetools create command with all digests
-            DIGEST_REFS=""
+            # With SBOM/provenance, each digest points to a manifest INDEX.
+            # We need to extract the actual platform manifests from each index.
+            PLATFORM_REFS=""
             for d in $digests; do
-              DIGEST_REFS="$DIGEST_REFS ${REPO}@${d}"
+              INDEX_REF="${REPO}@${d}"
+              echo "Extracting platform manifests from index: $INDEX_REF"
+
+              # Get all platform manifests from this index (excludes attestations)
+              PLATFORMS=$(docker buildx imagetools inspect "$INDEX_REF" --format '{{range .Manifest.Manifests}}{{if .Platform.OS}}{{.Digest}} {{end}}{{end}}')
+
+              for p in $PLATFORMS; do
+                [ -z "$p" ] && continue
+                PLATFORM_REFS="$PLATFORM_REFS ${REPO}@${p}"
+                echo "  Found platform manifest: ${REPO}@${p}"
+              done
             done
 
-            if docker buildx imagetools create -t "$tag" $DIGEST_REFS; then
+            if [ -z "$PLATFORM_REFS" ]; then
+              echo "::warning::No platform manifests found for $tag, skipping"
+              continue
+            fi
+
+            echo "Creating multi-arch manifest for $tag from:$PLATFORM_REFS"
+            if docker buildx imagetools create -t "$tag" $PLATFORM_REFS; then
               echo "Created manifest: $tag"
               # Get the manifest digest for signing
               MANIFEST_DIGEST=$(docker buildx imagetools inspect "$tag" --format '{{json .Manifest.Digest}}' | tr -d '"')
