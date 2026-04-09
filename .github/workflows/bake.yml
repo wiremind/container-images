@@ -154,7 +154,7 @@ jobs:
           sbom: true
           set: |
             *.platform=${{ matrix.arch.platform }}
-            *.output=type=image,oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true,push-by-digest=true,name-canonical=true
+            *.output=type=image,oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true
             *.cache-from=type=gha,scope=${{ matrix.image }}-${{ matrix.arch.slug }}
             *.cache-to=type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.arch.slug }}
             *.labels.org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
