@@ -10,15 +10,15 @@ variable "BB_VERSIONS" {
 }
 
 group "default" {
-  targets = ["debian13-hardened"]
+  targets = ["debian13-dhi"]
 }
 
-target "debian13-hardened" {
-  name       = "debian13-hardened-${replace(v, ".", "-")}"
+target "debian13-dhi" {
+  name       = "debian13-dhi-${replace(v, ".", "-")}"
   matrix     = { v = BB_VERSIONS }
   context    = "."
-  dockerfile = "Containerfile.debian13-hardened"
-  tags       = ["${REGISTRY}/busybox:${v}-debian13-hardened"]
+  dockerfile = "Containerfile.debian13-dhi"
+  tags       = ["${REGISTRY}/busybox:${v}-debian13-dhi"]
   args       = { UPSTREAM_TAG = "${v}-debian13" }
   platforms  = ["linux/amd64", "linux/arm64"]
 }
