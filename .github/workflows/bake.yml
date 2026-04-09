@@ -170,10 +170,9 @@ jobs:
       - name: Extract digest mapping
         if: steps.check-platform.outputs.supported == 'true' && github.event_name != 'pull_request'
         id: digests
+        env:
+          METADATA: ${{ steps.bake.outputs.metadata }}
         run: |
-          # Extract tag→digest mapping from bake metadata
-          METADATA='${{ steps.bake.outputs.metadata }}'
-
           # Create digest file: one line per "tag digest" pair
           echo "$METADATA" | jq -r '
             to_entries[] |
