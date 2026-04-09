@@ -211,7 +211,7 @@ jobs:
               FINAL_TAG="${tag%$SUFFIX}"
               echo "$FINAL_TAG $DIGEST"
             else
-              echo "::warning::Could not get digest for $tag"
+              echo "::warning::Could not get digest for $tag" >&2
             fi
           done | sort -u > ${{ github.workspace }}/digests-${{ matrix.arch.slug }}.txt
 
@@ -321,10 +321,11 @@ jobs:
               INDEX_REF="${REPO}@${d}"
               echo "  Inspecting index: $INDEX_REF"
 
-              # Extract platform manifest digest (filter out attestations by checking Platform.OS)
+              # Extract platform manifest digest (filter out attestations)
+              # Use first() to get exactly one digest, avoiding concatenation issues
               PLATFORM_DIGEST=$(
-                docker buildx imagetools inspect "$INDEX_REF" --format \
-                  '{{range .Manifest.Manifests}}{{if .Platform.OS}}{{.Digest}}{{end}}{{end}}' 2>/dev/null
+                docker buildx imagetools inspect "$INDEX_REF" --raw 2>/dev/null | \
+                jq -r 'first(.manifests[] | select(.platform.os and .platform.os != "unknown")).digest' 2>/dev/null
               )
 
               if [ -n "$PLATFORM_DIGEST" ]; then
