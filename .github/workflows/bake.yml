@@ -10,7 +10,7 @@ on:
 
 jobs:
   detect-changes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       images: ${{ steps.changes.outputs.images }}
       has_changes: ${{ steps.changes.outputs.has_changes }}
@@ -44,11 +44,18 @@ jobs:
   build:
     needs: detect-changes
     if: needs.detect-changes.outputs.has_changes == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.arch.runner }}
     strategy:
       fail-fast: false
       matrix:
         image: ${{ fromJson(needs.detect-changes.outputs.images) }}
+        arch:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+            slug: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            slug: arm64
 
     permissions:
       contents: read
@@ -61,7 +68,21 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check if platform is supported
+        id: check-platform
+        run: |
+          # Check if this image's bake config includes this platform
+          BAKE_FILE="images/${{ matrix.image }}/docker-bake.hcl"
+
+          if grep -q '${{ matrix.arch.platform }}' "$BAKE_FILE"; then
+            echo "supported=true" >> $GITHUB_OUTPUT
+          else
+            echo "supported=false" >> $GITHUB_OUTPUT
+            echo "::notice::Image ${{ matrix.image }} does not support ${{ matrix.arch.platform }}, skipping"
+          fi
+
       - name: Get build metadata
+        if: steps.check-platform.outputs.supported == 'true'
         id: metadata
         run: |
           # Get metadata from last commit that modified this image
@@ -73,13 +94,12 @@ jobs:
           CREATED=$(date -u -d @$SOURCE_DATE_EPOCH +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r $SOURCE_DATE_EPOCH +%Y-%m-%dT%H:%M:%SZ)
           echo "created=$CREATED" >> $GITHUB_OUTPUT
 
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@v4.1.1
-
       - name: Set up Docker Buildx
+        if: steps.check-platform.outputs.supported == 'true'
         uses: docker/setup-buildx-action@v4
 
       - name: Login to GHCR
+        if: steps.check-platform.outputs.supported == 'true'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -87,6 +107,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Login to Docker Hub
+        if: steps.check-platform.outputs.supported == 'true'
         uses: docker/login-action@v4
         with:
           registry: docker.io
@@ -94,6 +115,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
       - name: Login to DHI
+        if: steps.check-platform.outputs.supported == 'true'
         uses: docker/login-action@v4
         with:
           registry: dhi.io
@@ -101,9 +123,11 @@ jobs:
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
       - name: Load shared environment variables
+        if: steps.check-platform.outputs.supported == 'true'
         uses: HatsuneMiku3939/direnv-action@v1.1.5
 
-      - name: Build and push ${{ matrix.image }}
+      - name: Build and push ${{ matrix.image }} (${{ matrix.arch.platform }})
+        if: steps.check-platform.outputs.supported == 'true'
         id: bake
         uses: docker/bake-action@v7
         env:
@@ -113,14 +137,13 @@ jobs:
           files: docker-bake.hcl
           push: true
           pull: true
-          # NB: provenance and sbom are causing "unknown/unknown" images, just cosmetic. Non-issue.
           provenance: "mode=max,version=v1"
           sbom: true
-          # Can’t use `*.annotations.index,manifest:org.opencontainers.image` globally, put them in docker-bake.hcl if needed.
           set: |
-            *.cache-from=type=gha,scope=${{ matrix.image }}
-            *.cache-to=type=gha,mode=max,scope=${{ matrix.image }}
-            *.output=type=image,oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true
+            *.platform=${{ matrix.arch.platform }}
+            *.output=type=image,oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true,push-by-digest=true,name-canonical=true
+            *.cache-from=type=gha,scope=${{ matrix.image }}-${{ matrix.arch.slug }}
+            *.cache-to=type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.arch.slug }}
             *.labels.org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             *.labels.org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
             *.labels.org.opencontainers.image.revision=${{ steps.metadata.outputs.revision }}
@@ -131,37 +154,178 @@ jobs:
             *.labels.org.opencontainers.image.ref.name=${{ github.ref_name }}
             *.labels.org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}#readme
 
-      - name: Sign images with Cosign
-        env:
-          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
-          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
-        run: |-
+      - name: Extract digest mapping
+        if: steps.check-platform.outputs.supported == 'true'
+        id: digests
+        run: |
+          # Extract tag→digest mapping from bake metadata
           METADATA='${{ steps.bake.outputs.metadata }}'
 
-          # Extract image references and sign each
-          SIGN_FAILED=0
-          for image_ref in $(echo "$METADATA" | jq -r '
+          # Create digest file: one line per "tag digest" pair
+          echo "$METADATA" | jq -r '
             to_entries[] |
             select(.value["containerimage.digest"] and .value["image.name"]) |
             .value["containerimage.digest"] as $digest |
             (.value["image.name"] | split(",")[]) |
-            "\(.)@\($digest)"
-          ' | sort -u); do
-            [ -z "$image_ref" ] && continue
-            echo "Signing: $image_ref"
+            "\(.) \($digest)"
+          ' | sort -u > digests-${{ matrix.arch.slug }}.txt
+
+          echo "Generated digest mapping:"
+          cat digests-${{ matrix.arch.slug }}.txt
+
+      - name: Upload digest artifact
+        if: steps.check-platform.outputs.supported == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.image }}-${{ matrix.arch.slug }}
+          path: digests-${{ matrix.arch.slug }}.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  merge-manifests:
+    needs:
+      - detect-changes
+      - build
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJson(needs.detect-changes.outputs.images) }}
+
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Download digest artifacts
+        id: download
+        uses: actions/download-artifact@v4
+        with:
+          pattern: digests-${{ matrix.image }}-*
+          merge-multiple: true
+          path: digests
+        continue-on-error: true
+
+      - name: Check for digests
+        id: check-digests
+        run: |
+          if [ ! -d digests ] || [ -z "$(ls -A digests 2>/dev/null)" ]; then
+            echo "::notice::No digest artifacts found for ${{ matrix.image }}, skipping manifest creation"
+            echo "has_digests=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_digests=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install Cosign
+        if: steps.check-digests.outputs.has_digests == 'true'
+        uses: sigstore/cosign-installer@v4.1.1
+
+      - name: Set up Docker Buildx
+        if: steps.check-digests.outputs.has_digests == 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to GHCR
+        if: steps.check-digests.outputs.has_digests == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        if: steps.check-digests.outputs.has_digests == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Login to DHI
+        if: steps.check-digests.outputs.has_digests == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: dhi.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Create multi-arch manifests
+        if: steps.check-digests.outputs.has_digests == 'true'
+        id: manifest
+        run: |
+          # Collect all digest files
+          echo "Available digest files:"
+          ls -la digests/
+
+          # Build mapping: tag -> [digests]
+          declare -A TAG_DIGESTS
+
+          for digest_file in digests/digests-*.txt; do
+            [ -f "$digest_file" ] || continue
+            echo "Processing: $digest_file"
+            while IFS=' ' read -r tag digest; do
+              [ -z "$tag" ] && continue
+              # Append digest to tag's list (space-separated)
+              TAG_DIGESTS["$tag"]="${TAG_DIGESTS[$tag]} $digest"
+            done < "$digest_file"
+          done
+
+          # Create manifest for each tag
+          MANIFEST_REFS=""
+          for tag in "${!TAG_DIGESTS[@]}"; do
+            digests="${TAG_DIGESTS[$tag]}"
+            # Trim leading space and dedupe
+            digests=$(echo "$digests" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ')
+
+            echo "Creating manifest for $tag with digests: $digests"
+
+            # Extract registry/repo from tag
+            REPO=$(echo "$tag" | cut -d: -f1)
+
+            # Build imagetools create command with all digests
+            DIGEST_REFS=""
+            for d in $digests; do
+              DIGEST_REFS="$DIGEST_REFS ${REPO}@${d}"
+            done
+
+            if docker buildx imagetools create -t "$tag" $DIGEST_REFS; then
+              echo "Created manifest: $tag"
+              # Get the manifest digest for signing
+              MANIFEST_DIGEST=$(docker buildx imagetools inspect "$tag" --format '{{json .Manifest.Digest}}' | tr -d '"')
+              MANIFEST_REFS="$MANIFEST_REFS ${tag}@${MANIFEST_DIGEST}"
+            else
+              echo "::error::Failed to create manifest for $tag"
+            fi
+          done
+
+          # Output manifest refs for signing
+          echo "manifest_refs=$MANIFEST_REFS" >> $GITHUB_OUTPUT
+
+      - name: Sign manifests with Cosign
+        if: steps.check-digests.outputs.has_digests == 'true' && steps.manifest.outputs.manifest_refs != ''
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |-
+          SIGN_FAILED=0
+          MANIFEST_REFS="${{ steps.manifest.outputs.manifest_refs }}"
+          for manifest_ref in $MANIFEST_REFS; do
+            [ -z "$manifest_ref" ] && continue
+            echo "Signing manifest: $manifest_ref"
 
             if cosign sign --yes --key env://COSIGN_PRIVATE_KEY \
               -a "repo=${{ github.server_url }}/${{ github.repository }}" \
               -a "ref=${{ github.ref }}" \
               -a "sha=${{ github.sha }}" \
-              "$image_ref"; then
-              echo "Signed: $image_ref"
+              "$manifest_ref"; then
+              echo "Signed: $manifest_ref"
             else
-              echo "::warning::Failed to sign $image_ref"
+              echo "::warning::Failed to sign $manifest_ref"
               SIGN_FAILED=1
             fi
           done
 
           if [ "$SIGN_FAILED" -eq 1 ]; then
-            echo "::warning::Some images failed to sign (may be attestation artifacts)"
+            echo "::warning::Some manifests failed to sign"
           fi
