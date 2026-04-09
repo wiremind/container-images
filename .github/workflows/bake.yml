@@ -139,6 +139,28 @@ jobs:
         if: steps.check-platform.outputs.supported == 'true'
         uses: HatsuneMiku3939/direnv-action@v1.1.5
 
+      - name: Transform bake config with platform-specific tags
+        if: steps.check-platform.outputs.supported == 'true'
+        id: bake-transform
+        working-directory: ./images/${{ matrix.image }}
+        run: |
+          # Get bake metadata and transform tags to add platform suffix
+          # This prevents race conditions where both platforms overwrite the same tag
+          # Note: stderr goes to console (not the JSON file) to avoid corrupting the output
+          if ! docker buildx bake -f docker-bake.hcl --print > bake-original.json; then
+            echo "::error::Failed to parse docker-bake.hcl"
+            exit 1
+          fi
+
+          jq --arg suffix "-${{ matrix.arch.slug }}" '
+            .target |= with_entries(
+              .value.tags |= (if . then map(. + $suffix) else . end)
+            )
+          ' bake-original.json > bake-platform.json
+
+          echo "Transformed bake config:"
+          jq '.target | to_entries[] | {name: .key, tags: .value.tags}' bake-platform.json
+
       - name: Build and push ${{ matrix.image }} (${{ matrix.arch.platform }})
         if: steps.check-platform.outputs.supported == 'true'
         id: bake
@@ -147,7 +169,7 @@ jobs:
           SOURCE_DATE_EPOCH: ${{ steps.metadata.outputs.epoch }}
         with:
           source: ./images/${{ matrix.image }}
-          files: docker-bake.hcl
+          files: bake-platform.json
           push: ${{ github.event_name != 'pull_request' }}
           pull: true
           provenance: "mode=max,version=v1"
@@ -172,18 +194,22 @@ jobs:
         id: digests
         env:
           METADATA: ${{ steps.bake.outputs.metadata }}
+          PLATFORM_SUFFIX: "-${{ matrix.arch.slug }}"
         run: |
           # Create digest file: one line per "tag digest" pair
+          # Strip the platform suffix from tags to get the final tag name
           # Use printenv to avoid "Argument list too long" with large metadata
-          printenv METADATA | jq -r '
+          printenv METADATA | jq -r --arg suffix "$PLATFORM_SUFFIX" '
             to_entries[] |
             select(.value["containerimage.digest"] and .value["image.name"]) |
             .value["containerimage.digest"] as $digest |
             (.value["image.name"] | split(",")[]) |
-            "\(.) \($digest)"
+            # Strip platform suffix to get the final tag
+            (if endswith($suffix) then .[:-($suffix | length)] else . end) as $final_tag |
+            "\($final_tag) \($digest)"
           ' | sort -u > digests-${{ matrix.arch.slug }}.txt
 
-          echo "Generated digest mapping:"
+          echo "Generated digest mapping (final_tag -> platform_digest):"
           cat digests-${{ matrix.arch.slug }}.txt
 
       - name: Upload digest artifact
@@ -291,26 +317,34 @@ jobs:
             # Trim leading space and dedupe
             digests=$(echo "$digests" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ')
 
-            echo "Creating manifest for $tag with index digests: $digests"
+            echo "Processing tag: $tag"
+            echo "  Index digests: $digests"
 
             # Extract registry/repo from tag
             REPO=$(echo "$tag" | cut -d: -f1)
 
-            # With SBOM/provenance, each digest points to a manifest INDEX.
-            # We need to extract the actual platform manifests from each index.
+            # With SBOM/provenance enabled, each digest points to a manifest INDEX
+            # containing the image manifest plus attestation manifests.
+            # We need to extract the actual platform manifests (have Platform.OS set).
             PLATFORM_REFS=""
             for d in $digests; do
               INDEX_REF="${REPO}@${d}"
-              echo "Extracting platform manifests from index: $INDEX_REF"
+              echo "  Inspecting index: $INDEX_REF"
 
-              # Get all platform manifests from this index (excludes attestations)
-              PLATFORMS=$(docker buildx imagetools inspect "$INDEX_REF" --format '{{range .Manifest.Manifests}}{{if .Platform.OS}}{{.Digest}} {{end}}{{end}}')
+              # Extract platform manifest digest (filter out attestations by checking Platform.OS)
+              PLATFORM_DIGEST=$(
+                docker buildx imagetools inspect "$INDEX_REF" --format \
+                  '{{range .Manifest.Manifests}}{{if .Platform.OS}}{{.Digest}}{{end}}{{end}}' 2>/dev/null
+              )
 
-              for p in $PLATFORMS; do
-                [ -z "$p" ] && continue
-                PLATFORM_REFS="$PLATFORM_REFS ${REPO}@${p}"
-                echo "  Found platform manifest: ${REPO}@${p}"
-              done
+              if [ -n "$PLATFORM_DIGEST" ]; then
+                PLATFORM_REFS="$PLATFORM_REFS ${REPO}@${PLATFORM_DIGEST}"
+                echo "    Found platform manifest: $PLATFORM_DIGEST"
+              else
+                # Fallback: maybe it's already a simple manifest, use as-is
+                PLATFORM_REFS="$PLATFORM_REFS $INDEX_REF"
+                echo "    Using index directly (no nested manifests found)"
+              fi
             done
 
             if [ -z "$PLATFORM_REFS" ]; then
@@ -318,9 +352,9 @@ jobs:
               continue
             fi
 
-            echo "Creating multi-arch manifest for $tag from:$PLATFORM_REFS"
+            echo "  Creating multi-arch manifest from:$PLATFORM_REFS"
             if docker buildx imagetools create -t "$tag" $PLATFORM_REFS; then
-              echo "Created manifest: $tag"
+              echo "  Created manifest: $tag"
               # Get the manifest digest for signing
               MANIFEST_DIGEST=$(docker buildx imagetools inspect "$tag" --format '{{json .Manifest.Digest}}' | tr -d '"')
               MANIFEST_REFS="$MANIFEST_REFS ${tag}@${MANIFEST_DIGEST}"
