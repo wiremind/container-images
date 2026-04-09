@@ -6,6 +6,9 @@ on:
       - main
     paths:
       - "images/**"
+  pull_request:
+    paths:
+      - "images/**"
   workflow_dispatch:
 
 jobs:
@@ -26,6 +29,11 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             # Manual trigger: build all images
             IMAGES=$(ls -d images/*/ 2>/dev/null | xargs -n1 basename | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            # PR trigger: diff against base branch
+            git fetch origin ${{ github.base_ref }} --depth=1
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- images/ | cut -d/ -f2 | sort -u)
+            IMAGES=$(echo "$CHANGED" | grep -v '^$' | jq -R -s -c 'split("\n") | map(select(length > 0))')
           else
             # Push trigger: only changed images
             CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- images/ | cut -d/ -f2 | sort -u)
@@ -135,7 +143,7 @@ jobs:
         with:
           source: ./images/${{ matrix.image }}
           files: docker-bake.hcl
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           pull: true
           provenance: "mode=max,version=v1"
           sbom: true
@@ -155,7 +163,7 @@ jobs:
             *.labels.org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}#readme
 
       - name: Extract digest mapping
-        if: steps.check-platform.outputs.supported == 'true'
+        if: steps.check-platform.outputs.supported == 'true' && github.event_name != 'pull_request'
         id: digests
         run: |
           # Extract tag→digest mapping from bake metadata
@@ -174,7 +182,7 @@ jobs:
           cat digests-${{ matrix.arch.slug }}.txt
 
       - name: Upload digest artifact
-        if: steps.check-platform.outputs.supported == 'true'
+        if: steps.check-platform.outputs.supported == 'true' && github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: digests-${{ matrix.image }}-${{ matrix.arch.slug }}
@@ -186,7 +194,7 @@ jobs:
     needs:
       - detect-changes
       - build
-    if: needs.detect-changes.outputs.has_changes == 'true'
+    if: needs.detect-changes.outputs.has_changes == 'true' && github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
