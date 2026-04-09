@@ -33,7 +33,8 @@ jobs:
             ls -d images/*/ 2>/dev/null | xargs -n1 basename | jq -R -s -c 'split("\n") | map(select(length > 0))'
           }
 
-          ALL_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          REF_SHA=$( [ "${{ github.event_name }}" = "pull_request" ] && echo "${{ github.event.pull_request.base.sha }}" || echo "${{ github.event.before }}" )
+          ALL_CHANGED=$(git diff --name-only ${REF_SHA}...HEAD)
           ENVRC_CHANGED=$(echo "$ALL_CHANGED" | grep -E '^\.envrc$' || true)
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ -n "$ENVRC_CHANGED" ]; then
             # Manual trigger or .envrc changed: build all images
