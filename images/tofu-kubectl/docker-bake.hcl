@@ -2,6 +2,11 @@ variable "REGISTRY" {
   default = "ghcr.io/wiremind"
 }
 
+# Use fixed Debian snapshot version to ensure reproducible builds (see https://snapshot.debian.org/)
+variable "DEBIAN_SNAPSHOT_VERSION" {
+  default = "20260409T082340Z"
+}
+
 // tofu version to install (see https://github.com/opentofu/opentofu/releases/)
 variable "TOFU_VERSION" {
   default = "1.11.5"
@@ -26,6 +31,10 @@ target "debian13" {
   context    = "."
   dockerfile = "Containerfile.debian13"
   tags       = ["${REGISTRY}/tofu-kubectl:${TOFU_VERSION}-${k}-debian13"]
-  args       = { TOFU_VERSION = TOFU_VERSION, KUBECTL_VERSION = k }
+  args       = {
+    DEBIAN_SNAPSHOT_VERSION = "${DEBIAN_SNAPSHOT_VERSION}"
+    KUBECTL_VERSION         = k
+    TOFU_VERSION            = TOFU_VERSION
+  }
   platforms  = ["linux/amd64", "linux/arm64"]
 }
