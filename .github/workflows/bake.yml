@@ -174,7 +174,8 @@ jobs:
           METADATA: ${{ steps.bake.outputs.metadata }}
         run: |
           # Create digest file: one line per "tag digest" pair
-          echo "$METADATA" | jq -r '
+          # Use printenv to avoid "Argument list too long" with large metadata
+          printenv METADATA | jq -r '
             to_entries[] |
             select(.value["containerimage.digest"] and .value["image.name"]) |
             .value["containerimage.digest"] as $digest |
