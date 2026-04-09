@@ -4,7 +4,6 @@ ARG SPOA_BOUNCER_VERSION=0.3.0
 FROM ghcr.io/crowdsecurity/spoa-bouncer:v${SPOA_BOUNCER_VERSION} AS spoa-bouncer
 
 # Add GeoLite2 databases to spoa-bouncer image, do not modify anything else.
-
 ARG GEOLITE_REPO=github.com/P3TERX/GeoLite.mmdb
 ARG GEOLITE_VERSION=2026.04.04
 
