@@ -171,7 +171,8 @@ jobs:
         env:
           SOURCE_DATE_EPOCH: ${{ steps.metadata.outputs.epoch }}
         with:
-          files: ./images/${{ matrix.image }}/bake-platform.json
+          source: ./images/${{ matrix.image }}
+          files: bake-platform.json
           push: ${{ github.event_name != 'pull_request' }}
           pull: true
           provenance: "mode=max,version=v1"
