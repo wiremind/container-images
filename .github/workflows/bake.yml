@@ -176,14 +176,13 @@ jobs:
         with:
           source: ./images/${{ matrix.image }}
           files: bake-platform.json
-          push: ${{ github.event_name != 'pull_request' }}
           pull: true
           # In multi-native build, hassle to handle. Disable them for now.
           provenance: false
           sbom: false
           set: |
             *.platform=${{ matrix.arch.platform }}
-            *.output=type=image,oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true
+            *.output=type=image,push=${{ github.event_name != 'pull_request' }},oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true
             *.cache-from=type=gha,scope=${{ matrix.image }}-${{ matrix.arch.slug }}
             *.cache-to=type=gha,mode=max,scope=${{ matrix.image }}-${{ matrix.arch.slug }}
             *.labels.org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
