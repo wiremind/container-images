@@ -139,33 +139,37 @@ jobs:
         if: steps.check-platform.outputs.supported == 'true'
         uses: HatsuneMiku3939/direnv-action@v1.1.5
 
-      - name: Transform bake config with platform-specific tags
+      - name: Transform bake config with per-commit platform tags
         if: steps.check-platform.outputs.supported == 'true'
         id: bake-transform
         working-directory: ./images/${{ matrix.image }}
         run: |
-          # Get bake metadata and transform tags to add platform suffix
-          # This prevents race conditions where both platforms overwrite the same tag
-          # Note: stderr goes to console (not the JSON file) to avoid corrupting the output
           if ! docker buildx bake -f docker-bake.hcl --print > bake-original.json; then
             echo "::error::Failed to parse docker-bake.hcl"
             exit 1
           fi
 
-          # Transform: add platform suffix to tags
-          # Note: context/dockerfile paths stay relative to bake file location (docker resolves them)
-          jq --arg suffix "-${{ matrix.arch.slug }}" '
+          SHA="${{ github.sha }}"
+
+          # Save original tags for the merge step
+          jq -r '.target[].tags[]?' bake-original.json | sort -u > original-tags.txt
+          echo "Original tags:"
+          cat original-tags.txt
+
+          # Transform: replace each tag with a per-commit platform-specific tag
+          # e.g. ghcr.io/wiremind/haproxy:2.8.20-debian13
+          #   -> ghcr.io/wiremind/haproxy:2.8.20-debian13-<sha>-amd64
+          jq --arg suffix "-${SHA}-${{ matrix.arch.slug }}" '
             .target |= with_entries(
               .value.tags |= (if . then map(. + $suffix) else . end)
             )
           ' bake-original.json > bake-platform.json
 
-          echo "Transformed bake config:"
-          jq '.target | to_entries[] | {name: .key, tags: .value.tags}' bake-platform.json
+          echo "Transformed tags:"
+          jq -r '.target[].tags[]?' bake-platform.json
 
       - name: Build and push ${{ matrix.image }} (${{ matrix.arch.platform }})
         if: steps.check-platform.outputs.supported == 'true'
-        id: bake
         uses: docker/bake-action@v7
         env:
           SOURCE_DATE_EPOCH: ${{ steps.metadata.outputs.epoch }}
@@ -174,8 +178,9 @@ jobs:
           files: bake-platform.json
           push: ${{ github.event_name != 'pull_request' }}
           pull: true
-          provenance: "mode=max,version=v1"
-          sbom: true
+          # In multi-native build, hassle to handle. Disable them for now.
+          provenance: false
+          sbom: false
           set: |
             *.platform=${{ matrix.arch.platform }}
             *.output=type=image,oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true
@@ -191,39 +196,13 @@ jobs:
             *.labels.org.opencontainers.image.ref.name=${{ github.ref_name }}
             *.labels.org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}#readme
 
-      - name: Extract digest mapping
-        if: steps.check-platform.outputs.supported == 'true' && github.event_name != 'pull_request'
-        id: digests
-        working-directory: ./images/${{ matrix.image }}
-        run: |
-          # Extract tags from bake config and query registry for digests
-          # This avoids the huge metadata output that causes "Argument list too long"
-          SUFFIX="-${{ matrix.arch.slug }}"
-
-          # Get all tags from the transformed bake config
-          jq -r '.target[].tags[]?' bake-platform.json | while read -r tag; do
-            [ -z "$tag" ] && continue
-
-            # Query registry for the digest
-            DIGEST=$(docker buildx imagetools inspect "$tag" --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"')
-            if [ -n "$DIGEST" ]; then
-              # Strip platform suffix to get the final tag
-              FINAL_TAG="${tag%$SUFFIX}"
-              echo "$FINAL_TAG $DIGEST"
-            else
-              echo "::warning::Could not get digest for $tag" >&2
-            fi
-          done | sort -u > ${{ github.workspace }}/digests-${{ matrix.arch.slug }}.txt
-
-          echo "Generated digest mapping (final_tag -> platform_digest):"
-          cat ${{ github.workspace }}/digests-${{ matrix.arch.slug }}.txt
-
-      - name: Upload digest artifact
-        if: steps.check-platform.outputs.supported == 'true' && github.event_name != 'pull_request'
+      - name: Upload original tags
+        # Only upload once per image (both platforms produce the same tag list)
+        if: steps.check-platform.outputs.supported == 'true' && github.event_name != 'pull_request' && matrix.arch.slug == 'amd64'
         uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ matrix.image }}-${{ matrix.arch.slug }}
-          path: digests-${{ matrix.arch.slug }}.txt
+          name: tags-${{ matrix.image }}
+          path: images/${{ matrix.image }}/original-tags.txt
           if-no-files-found: error
           retention-days: 1
 
@@ -244,35 +223,34 @@ jobs:
       id-token: write
 
     steps:
-      - name: Download digest artifacts
+      - name: Download tag artifacts
         id: download
         uses: actions/download-artifact@v4
         with:
-          pattern: digests-${{ matrix.image }}-*
-          merge-multiple: true
-          path: digests
+          name: tags-${{ matrix.image }}
+          path: tags
         continue-on-error: true
 
-      - name: Check for digests
-        id: check-digests
+      - name: Check for tags
+        id: check-tags
         run: |
-          if [ ! -d digests ] || [ -z "$(ls -A digests 2>/dev/null)" ]; then
-            echo "::notice::No digest artifacts found for ${{ matrix.image }}, skipping manifest creation"
-            echo "has_digests=false" >> $GITHUB_OUTPUT
+          if [ ! -d tags ] || [ -z "$(ls -A tags 2>/dev/null)" ]; then
+            echo "::notice::No tag artifacts found for ${{ matrix.image }}, skipping manifest creation"
+            echo "has_tags=false" >> $GITHUB_OUTPUT
           else
-            echo "has_digests=true" >> $GITHUB_OUTPUT
+            echo "has_tags=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Install Cosign
-        if: steps.check-digests.outputs.has_digests == 'true'
+        if: steps.check-tags.outputs.has_tags == 'true'
         uses: sigstore/cosign-installer@v4.1.1
 
       - name: Set up Docker Buildx
-        if: steps.check-digests.outputs.has_digests == 'true'
+        if: steps.check-tags.outputs.has_tags == 'true'
         uses: docker/setup-buildx-action@v4
 
       - name: Login to GHCR
-        if: steps.check-digests.outputs.has_digests == 'true'
+        if: steps.check-tags.outputs.has_tags == 'true'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -280,85 +258,53 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create multi-arch manifests
-        if: steps.check-digests.outputs.has_digests == 'true'
+        if: steps.check-tags.outputs.has_tags == 'true'
         id: manifest
         run: |
-          # Collect all digest files
-          echo "Available digest files:"
-          ls -la digests/
-
-          # Build mapping: tag -> [digests]
-          declare -A TAG_DIGESTS
-
-          for digest_file in digests/digests-*.txt; do
-            [ -f "$digest_file" ] || continue
-            echo "Processing: $digest_file"
-            while IFS=' ' read -r tag digest; do
-              [ -z "$tag" ] && continue
-              # Append digest to tag's list (space-separated)
-              TAG_DIGESTS["$tag"]="${TAG_DIGESTS[$tag]} $digest"
-            done < "$digest_file"
-          done
-
-          # Create manifest for each tag
+          SHA="${{ github.sha }}"
           MANIFEST_REFS=""
-          for tag in "${!TAG_DIGESTS[@]}"; do
-            digests="${TAG_DIGESTS[$tag]}"
-            # Trim leading space and dedupe
-            digests=$(echo "$digests" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ')
 
-            echo "Processing tag: $tag"
-            echo "  Index digests: $digests"
+          # Deduplicate tags across platform artifacts (both platforms produce the same list)
+          sort -u tags/original-tags.txt > all-tags.txt
 
-            # Extract registry/repo from tag
-            REPO=$(echo "$tag" | cut -d: -f1)
+          echo "Tags to create multi-arch manifests for:"
+          cat all-tags.txt
 
-            # With SBOM/provenance enabled, each digest points to a manifest INDEX
-            # containing the image manifest plus attestation manifests.
-            # We need to extract the actual platform manifests (have Platform.OS set).
-            PLATFORM_REFS=""
-            for d in $digests; do
-              INDEX_REF="${REPO}@${d}"
-              echo "  Inspecting index: $INDEX_REF"
+          while read -r tag; do
+            [ -z "$tag" ] && continue
 
-              # Extract platform manifest digest (filter out attestations)
-              # Use first() to get exactly one digest, avoiding concatenation issues
-              PLATFORM_DIGEST=$(
-                docker buildx imagetools inspect "$INDEX_REF" --raw 2>/dev/null | \
-                jq -r 'first(.manifests[] | select(.platform.os and .platform.os != "unknown")).digest' 2>/dev/null
-              )
+            AMD64_REF="${tag}-${SHA}-amd64"
+            ARM64_REF="${tag}-${SHA}-arm64"
 
-              if [ -n "$PLATFORM_DIGEST" ]; then
-                PLATFORM_REFS="$PLATFORM_REFS ${REPO}@${PLATFORM_DIGEST}"
-                echo "    Found platform manifest: $PLATFORM_DIGEST"
+            # Check which platform images exist
+            SOURCES=""
+            for ref in "$AMD64_REF" "$ARM64_REF"; do
+              if docker buildx imagetools inspect "$ref" > /dev/null 2>&1; then
+                SOURCES="$SOURCES $ref"
               else
-                # Fallback: maybe it's already a simple manifest, use as-is
-                PLATFORM_REFS="$PLATFORM_REFS $INDEX_REF"
-                echo "    Using index directly (no nested manifests found)"
+                echo "::notice::Platform image not found: $ref (image may not support this platform)"
               fi
             done
 
-            if [ -z "$PLATFORM_REFS" ]; then
-              echo "::warning::No platform manifests found for $tag, skipping"
+            if [ -z "$SOURCES" ]; then
+              echo "::warning::No platform images found for $tag, skipping"
               continue
             fi
 
-            echo "  Creating multi-arch manifest from:$PLATFORM_REFS"
-            if docker buildx imagetools create -t "$tag" $PLATFORM_REFS; then
-              echo "  Created manifest: $tag"
-              # Get the manifest digest for signing
+            echo "Creating manifest: $tag from:$SOURCES"
+            if docker buildx imagetools create -t "$tag" $SOURCES; then
+              echo "Created: $tag"
               MANIFEST_DIGEST=$(docker buildx imagetools inspect "$tag" --format '{{json .Manifest.Digest}}' | tr -d '"')
               MANIFEST_REFS="$MANIFEST_REFS ${tag}@${MANIFEST_DIGEST}"
             else
               echo "::error::Failed to create manifest for $tag"
             fi
-          done
+          done < all-tags.txt
 
-          # Output manifest refs for signing
           echo "manifest_refs=$MANIFEST_REFS" >> $GITHUB_OUTPUT
 
       - name: Sign manifests with Cosign
-        if: steps.check-digests.outputs.has_digests == 'true' && steps.manifest.outputs.manifest_refs != ''
+        if: steps.check-tags.outputs.has_tags == 'true' && steps.manifest.outputs.manifest_refs != ''
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
