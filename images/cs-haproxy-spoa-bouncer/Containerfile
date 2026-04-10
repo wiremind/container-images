@@ -8,6 +8,7 @@ FROM ghcr.io/crowdsecurity/spoa-bouncer:v${SPOA_BOUNCER_VERSION} AS spoa-bouncer
 ARG GEOLITE_REPO=github.com/P3TERX/GeoLite.mmdb
 ARG GEOLITE_VERSION=2026.04.04
 
-ADD --chmod=0644 https://${GEOLITE_REPO}/releases/download/${GEOLITE_VERSION}/GeoLite2-ASN.mmdb /var/lib/crowdsec/data/
-ADD --chmod=0644 https://${GEOLITE_REPO}/releases/download/${GEOLITE_VERSION}/GeoLite2-City.mmdb /var/lib/crowdsec/data/
-ADD --chmod=0644 https://${GEOLITE_REPO}/releases/download/${GEOLITE_VERSION}/GeoLite2-Country.mmdb /var/lib/crowdsec/data/
+# --chown ensures directory and files are owned by nobody (65534), allowing non-root access
+ADD --chmod=0644 --chown=65534:65534 https://${GEOLITE_REPO}/releases/download/${GEOLITE_VERSION}/GeoLite2-ASN.mmdb /var/lib/crowdsec/data/
+ADD --chmod=0644 --chown=65534:65534 https://${GEOLITE_REPO}/releases/download/${GEOLITE_VERSION}/GeoLite2-City.mmdb /var/lib/crowdsec/data/
+ADD --chmod=0644 --chown=65534:65534 https://${GEOLITE_REPO}/releases/download/${GEOLITE_VERSION}/GeoLite2-Country.mmdb /var/lib/crowdsec/data/
