@@ -198,7 +198,7 @@ jobs:
       - name: Upload original tags
         # Only upload once per image (both platforms produce the same tag list)
         if: steps.check-platform.outputs.supported == 'true' && github.event_name != 'pull_request' && matrix.arch.slug == 'amd64'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tags-${{ matrix.image }}
           path: images/${{ matrix.image }}/original-tags.txt
@@ -224,7 +224,7 @@ jobs:
     steps:
       - name: Download tag artifacts
         id: download
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: tags-${{ matrix.image }}
           path: tags
