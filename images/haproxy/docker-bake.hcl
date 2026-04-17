@@ -54,7 +54,7 @@ target "debian13-gcr" {
   dockerfile = "Containerfile.debian13-gcr"
   tags       = ["${REGISTRY}/haproxy:${v}-debian13-gcr"]
   args       = {
-    BASE = "gcr.io/distroless/base-debian13:nonroot@sha256:a696c7c8545ba9b2b2807ee60b8538d049622f0addd85aee8cec3ec1910de1f9"
+    BASE = "gcr.io/distroless/base-debian13:nonroot@sha256:fb282f8ed3057f71dbfe3ea0f5fa7e961415dafe4761c23948a9d4628c6166fe"
     DEBIAN_SNAPSHOT_VERSION = "${DEBIAN_SNAPSHOT_VERSION}",
     HAPROXY_VERSION = v,
   }
