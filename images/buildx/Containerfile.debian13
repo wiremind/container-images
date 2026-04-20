@@ -1,14 +1,26 @@
 # syntax=docker.io/docker/dockerfile:1
 
-FROM docker.io/library/debian:trixie-slim
+FROM dhi.io/debian-base:trixie-dev
 
 ARG TARGETOS
 ARG TARGETARCH
-ARG BUILDX_VERSION=v0.33.0
-ENV BINARY="buildx-${BUILDX_VERSION}.${TARGETOS}-${TARGETARCH}"
+ARG DEBIAN_SNAPSHOT_VERSION="20260419T082501Z"
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NOWARNINGS="yes"
+
+SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
+
+# hadolint ignore=DL3008
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=apt-cache-$TARGETARCH \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked,id=apt-lib-$TARGETARCH \
+    <<-EOF
+apt-get update -o Acquire::Check-Valid-Until=false -q --snapshot=${DEBIAN_SNAPSHOT_VERSION}
+apt-get install -yq --no-install-recommends --snapshot=${DEBIAN_SNAPSHOT_VERSION} ca-certificates git
+EOF
+
+ARG BUILDX_VERSION=v0.33.0
+ENV BINARY="buildx-${BUILDX_VERSION}.${TARGETOS}-${TARGETARCH}"
 
 ADD --chmod=0755 https://github.com/docker/buildx/releases/download/${BUILDX_VERSION}/${BINARY} /usr/local/bin/buildx
 
