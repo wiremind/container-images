@@ -2,13 +2,12 @@ variable "REGISTRY" {
   default = "ghcr.io/wiremind"
 }
 
-// HAProxy versions used across targets (e.g., "2.8.18", "3.0.14")
+// HAProxy versions used across targets (e.g., "2.8.18", "3.0.14"), only build LTS versions
 variable "HAPROXY_VERSIONS" {
   default = [
     "2.8.21", # renovate: datasource=docker depName=docker.io/library/haproxy
     "3.0.20", # renovate: datasource=docker depName=docker.io/library/haproxy
-    "3.2.15", # renovate: datasource=docker depName=docker.io/library/haproxy
-    "3.3.6",  # renovate: datasource=docker depName=docker.io/library/haproxy
+    "3.2.16", # renovate: datasource=docker depName=docker.io/library/haproxy
   ]
 }
 
