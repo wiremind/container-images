@@ -19,7 +19,7 @@ target "spoa" {
   dockerfile = "Containerfile"
   tags       = ["${REGISTRY}/cs-haproxy-spoa-bouncer:${v}"]
   args       = {
-    GEOLITE_VERSION = "2026.04.25",
+    GEOLITE_VERSION = "2026.04.28", # renovate: datasource=github-releases depName=P3TERX/GeoLite.mmdb
     SPOA_BOUNCER_VERSION = "${v}",
   }
   platforms  = ["linux/amd64", "linux/arm64"]
