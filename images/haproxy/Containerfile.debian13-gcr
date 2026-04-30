@@ -124,27 +124,3 @@ STOPSIGNAL SIGUSR1
 # 8443: default HTTPS port
 # 9101: default Prometheus metrics port
 EXPOSE 1936/tcp 8080/tcp 8443/tcp 9101/tcp
-
-
-# Final image with additional files
-FROM haproxy AS full
-
-# Cloudflare IP ranges for CF-Connecting-IP spoofing protection.
-#
-# HAProxy ACL checks `src -f /etc/cloudflare/ips-v4` before trusting
-# the CF-Connecting-IP header.
-#
-# Ref: https://www.cloudflare.com/ips/
-ADD --chmod=0644 --chown=haproxy:haproxy https://www.cloudflare.com/ips-v4 /etc/cloudflare/
-ADD --chmod=0644 --chown=haproxy:haproxy https://www.cloudflare.com/ips-v6 /etc/cloudflare/
-
-# Suspicious user-agent lists
-#
-# from https://github.com/ai-robots-txt/ai.robots.txt
-ADD --chmod=0644 --chown=haproxy:haproxy https://raw.githubusercontent.com/ai-robots-txt/ai.robots.txt/refs/heads/main/haproxy-block-ai-bots.txt /etc/useragent/ia.lst
-# from https://github.com/mthcht/awesome-lists/blob/main/Lists/suspicious_http_user_agents_list.csv
-# TODO automate updates with GitHub Actions
-COPY files/suspicious-ua.txt /etc/useragent/suspicious.lst
-
-# GeoIP country data
-# ADD --chmod=0644 --chown=haproxy:haproxy --unpack=true https://www.ipdeny.com/ipblocks/data/countries/all-zones.tar.gz /etc/geoip/countries/
