@@ -11,6 +11,7 @@ Custom container images built and maintained by Wiremind, published to GitHub Co
 | **kubectl** | Kubectl CLI | `ghcr.io/wiremind/kubectl` |
 | **buildx** | Docker Buildx CLI | `ghcr.io/wiremind/buildx` |
 | **gentoo-stage3** | Gentoo stage3 base image | `ghcr.io/wiremind/gentoo-stage3` |
+| **curl-jq** | curl image with jq | `ghcr.io/wiremind/curl-jq` |
 
 ## Usage
 

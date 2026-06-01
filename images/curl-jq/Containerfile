@@ -1,0 +1,9 @@
+# syntax=docker.io/docker/dockerfile:1
+
+ARG CURL_VERSION=8.20.0
+FROM docker.io/curlimages/curl:${CURL_VERSION}
+
+ARG JQ_VERSION=1.8.1-r0
+USER root
+RUN apk add --no-cache jq=${JQ_VERSION}
+USER curl_user
