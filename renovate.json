@@ -51,9 +51,19 @@
       "description": "Update versions in docker-bake.hcl files",
       "managerFilePatterns": ["/(^|/)docker-bake\\.hcl$/"],
       "matchStrings": [
-        "\"(?<currentValue>[\\d.]+)\"[,\\s]*#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)"
+        "\"(?<currentValue>v?[\\d.]+)\"[,\\s]*#\\s*renovate:\\s*datasource=(?<datasource>[^\\s]+)\\s+depName=(?<depName>[^\\s]+)"
       ],
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Update APK package versions in docker-bake.hcl files",
+      "managerFilePatterns": ["/(^|/)docker-bake\\.hcl$/"],
+      "matchStrings": [
+        "\"(?<currentValue>[\\d.]+(?:-r\\d+)?)\"[,\\s]*#\\s*renovate:\\s*datasource=apk\\s+depName=(?<depName>[^\\s]+)"
+      ],
+      "datasourceTemplate": "apk",
+      "versioningTemplate": "apk"
     }
   ]
 }
