@@ -7,7 +7,7 @@ variable "CURL_VERSION" {
   default = "8.20.0"  # renovate: datasource=docker depName=docker.io/curlimages/curl
 }
 
-// jq version (see https://pkgs.alpinelinux.org/package/edge/main/x86/jq)
+// jq version (see https://pkgs.alpinelinux.org/packages?name=jq&branch=edge&repo=&arch=&origin=&flagged=&maintainer=)
 variable "JQ_VERSION" {
   default = "1.8.1-r0"  # renovate: datasource=apk depName=jq
 }
