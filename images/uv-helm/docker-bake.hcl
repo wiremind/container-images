@@ -9,7 +9,7 @@ variable "UV_VERSION" {
 
 // helm version (see https://github.com/helm/helm/releases)
 variable "HELM_VERSION" {
-  default = "3.17.2"
+  default = "3.18.6"
 }
 
 // yq version (see https://github.com/mikefarah/yq/releases)
