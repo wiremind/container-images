@@ -14,7 +14,7 @@ USER root
 SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
 
 ARG TARGETARCH
-ARG DEBIAN_SNAPSHOT_VERSION="20260405T202926Z"
+ARG DEBIAN_SNAPSHOT_VERSION
 
 # All deps for building - static libs will be linked into haproxy binary
 ENV BUILD_DEPS="build-essential libpcre2-dev libssl-dev liblua5.4-dev zlib1g-dev libzstd-dev lua-json"

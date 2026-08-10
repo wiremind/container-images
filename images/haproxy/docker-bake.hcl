@@ -11,9 +11,12 @@ variable "HAPROXY_VERSIONS" {
   ]
 }
 
-# Use fixed Debian snapshot version to ensure reproducible builds (see https://snapshot.debian.org/)
 variable "DEBIAN_SNAPSHOT_VERSION" {
-  default = "20260406T144517Z"
+  default = ""
+  validation {
+    condition     = DEBIAN_SNAPSHOT_VERSION != ""
+    error_message = "DEBIAN_SNAPSHOT_VERSION is unset — it comes from .envrc at the repo root."
+  }
 }
 
 group "default" {

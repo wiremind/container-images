@@ -11,7 +11,7 @@ SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
 # Default is overridden by docker-bake.hcl
 ARG UPSTREAM_TAG=v1.35.0
 ARG TARGETARCH
-ARG DEBIAN_SNAPSHOT_VERSION="20260409T082340Z"
+ARG DEBIAN_SNAPSHOT_VERSION
 
 # Default UID/GID for kubectl user
 ARG UID=1001

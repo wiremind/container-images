@@ -10,7 +10,7 @@ USER root
 SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
 
 ARG TARGETARCH
-ARG DEBIAN_SNAPSHOT_VERSION="20260405T082808Z"
+ARG DEBIAN_SNAPSHOT_VERSION
 
 # lua-json is needed to use auth-url & auth-signin with haproxy-ingress
 # hadolint ignore=DL3008

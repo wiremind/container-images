@@ -2,9 +2,12 @@ variable "REGISTRY" {
   default = "ghcr.io/wiremind"
 }
 
-# Use fixed Debian snapshot version to ensure reproducible builds (see https://snapshot.debian.org/)
 variable "DEBIAN_SNAPSHOT_VERSION" {
-  default = "20260409T082340Z"
+  default = ""
+  validation {
+    condition     = DEBIAN_SNAPSHOT_VERSION != ""
+    error_message = "DEBIAN_SNAPSHOT_VERSION is unset — it comes from .envrc at the repo root."
+  }
 }
 
 // tofu version to install (see https://github.com/opentofu/opentofu/releases/)
