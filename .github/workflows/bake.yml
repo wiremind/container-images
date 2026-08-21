@@ -137,7 +137,7 @@ jobs:
 
       - name: Load shared environment variables
         if: steps.check-platform.outputs.supported == 'true'
-        uses: HatsuneMiku3939/direnv-action@v1.1.5
+        uses: HatsuneMiku3939/direnv-action@v1.4.6
 
       - name: Transform bake config with per-commit platform tags
         if: steps.check-platform.outputs.supported == 'true'
