@@ -1,6 +1,6 @@
 # syntax=docker.io/docker/dockerfile:1
 
-ARG UPSTREAM_TAG=3.3.6-trixie
+ARG UPSTREAM_TAG=3.3.14-trixie
 FROM docker.io/library/haproxy:${UPSTREAM_TAG} AS haproxy
 
 ENV DEBIAN_FRONTEND=noninteractive
