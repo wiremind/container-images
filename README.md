@@ -12,6 +12,7 @@ Custom container images built and maintained by Wiremind, published to GitHub Co
 | **buildx** | Docker Buildx CLI | `ghcr.io/wiremind/buildx` |
 | **gentoo-stage3** | Gentoo stage3 base image | `ghcr.io/wiremind/gentoo-stage3` |
 | **curl-jq** | curl image with jq | `ghcr.io/wiremind/curl-jq` |
+| **cnpg-pgmq** | CloudNativePG PostgreSQL with pgmq and pg_partman | `ghcr.io/wiremind/cnpg-pgmq` |
 
 ## Usage
 
