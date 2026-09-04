@@ -1,0 +1,69 @@
+# syntax=docker.io/docker/dockerfile:1
+
+ARG UPSTREAM_TAG=17.6-system-trixie
+
+FROM ghcr.io/cloudnative-pg/postgresql:${UPSTREAM_TAG} AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBCONF_NOWARNINGS="yes"
+
+# hadolint ignore=DL3002
+USER root
+SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
+
+ARG TARGETARCH
+ARG PG_MAJOR=17
+ARG PGMQ_VERSION=1.11.1
+ARG PGMQ_SHA256=8d2d81ec7bf4d1efaeabe1363063f1ec8ab839f1dd2fd94ab901e4507dacb4b8
+ARG DEBIAN_SNAPSHOT_VERSION="20260406T144517Z"
+
+# pgmq declares no C module, so PGXS installs a control file and SQL scripts only.
+# This stage keeps make and the PGXS headers out of the runtime image.
+# hadolint ignore=DL3008
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=apt-cache-$TARGETARCH --mount=type=cache,target=/var/lib/apt,sharing=locked,id=apt-lib-$TARGETARCH <<-APT
+apt-get update -o Acquire::Check-Valid-Until=false -q --snapshot=${DEBIAN_SNAPSHOT_VERSION}
+apt-get install -yq --no-install-recommends --snapshot=${DEBIAN_SNAPSHOT_VERSION} \
+	ca-certificates curl make postgresql-server-dev-${PG_MAJOR}
+APT
+
+RUN <<-PGMQ
+curl -sSfL "https://github.com/pgmq/pgmq/archive/refs/tags/v${PGMQ_VERSION}.tar.gz" -o /tmp/pgmq.tar.gz
+echo "${PGMQ_SHA256}  /tmp/pgmq.tar.gz" | sha256sum --strict --check -
+mkdir -p /tmp/pgmq
+tar -xzf /tmp/pgmq.tar.gz -C /tmp/pgmq --strip-components=1
+make -C /tmp/pgmq/pgmq-extension install DESTDIR=/opt/pgmq PG_CONFIG="/usr/lib/postgresql/${PG_MAJOR}/bin/pg_config"
+PGMQ
+
+# ---------------------------------------------------------------------------
+FROM ghcr.io/cloudnative-pg/postgresql:${UPSTREAM_TAG}
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBCONF_NOWARNINGS="yes"
+
+USER root
+SHELL ["/bin/bash", "-exo", "pipefail", "-c"]
+
+ARG TARGETARCH
+ARG PG_MAJOR=17
+ARG PARTMAN_VERSION=5.2.4-1
+ARG DEBIAN_SNAPSHOT_VERSION="20260406T144517Z"
+
+# docker-bake.hcl pins pg_partman per PostgreSQL major, and the two majors carry
+# different versions on purpose. PostgreSQL 17 takes 5.2.4-1 from Debian trixie,
+# which is the version the Patroni source runs, so a CNPG bootstrap import needs
+# no extension update. PostgreSQL 18 takes 5.5.0 from PGDG, because Debian trixie
+# packages pg_partman for PostgreSQL 17 only.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked,id=apt-cache-$TARGETARCH --mount=type=cache,target=/var/lib/apt,sharing=locked,id=apt-lib-$TARGETARCH <<-APT
+apt-get update -o Acquire::Check-Valid-Until=false -q --snapshot=${DEBIAN_SNAPSHOT_VERSION}
+apt-get install -yq --no-install-recommends --snapshot=${DEBIAN_SNAPSHOT_VERSION} \
+	"postgresql-${PG_MAJOR}-partman=${PARTMAN_VERSION}"
+APT
+
+COPY --from=builder /opt/pgmq/usr/share/postgresql/${PG_MAJOR}/extension/ /usr/share/postgresql/${PG_MAJOR}/extension/
+
+RUN <<-CHECK
+test -f "/usr/share/postgresql/${PG_MAJOR}/extension/pg_partman.control"
+test -f "/usr/share/postgresql/${PG_MAJOR}/extension/pgmq.control"
+CHECK
+
+USER 26
