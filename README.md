@@ -13,6 +13,30 @@ Custom container images built and maintained by Wiremind, published to GitHub Co
 | **gentoo-stage3** | Gentoo stage3 base image | `ghcr.io/wiremind/gentoo-stage3` |
 | **curl-jq** | curl image with jq | `ghcr.io/wiremind/curl-jq` |
 | **cnpg-pgmq** | CloudNativePG PostgreSQL with pgmq and pg_partman | `ghcr.io/wiremind/cnpg-pgmq` |
+| **bitnami/redis** | Bitnami Redis, rebuilt from the upstream recipe | `ghcr.io/wiremind/bitnami/redis` |
+| **bitnami/redis-sentinel** | Bitnami Redis Sentinel, rebuilt from the upstream recipe | `ghcr.io/wiremind/bitnami/redis-sentinel` |
+
+## Mirrored upstream images
+
+`bitnami/*` images are mirrors, not wiremind flavours. Bitnami no longer publishes
+versioned tags — `docker.io/bitnami/<name>` keeps only `latest`, now Photon-based —
+so the recipe is vendored from [bitnami/containers](https://github.com/bitnami/containers)
+and rebuilt here, and the published tag reuses the upstream string verbatim so the
+mirror stays drop-in for the charts that reference it.
+
+`images/bitnami-redis` is vendored from commit
+[`5fcbd0c`](https://github.com/bitnami/containers/commit/5fcbd0c46ef34e9c41f98b5aff6a47672ea9ab3d).
+`redis` and `redis-sentinel` are two containers of the same pod and must never drift
+apart, so they live in one image directory and move together.
+
+To refresh, resolve the release commit of the wanted revision:
+
+```bash
+gh api "repos/bitnami/containers/commits?path=bitnami/redis/8.10/debian-12&per_page=1"
+```
+
+then re-vendor both recipes from it, move `REDIS_TAG`, and record the new commit here.
+Renovate cannot track this: no datasource is left for a bitnami image revision.
 
 ## Usage
 
