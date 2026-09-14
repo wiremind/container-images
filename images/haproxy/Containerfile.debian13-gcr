@@ -3,7 +3,7 @@
 # Minimal HAProxy container with static linking for OpenSSL, PCRE2, Lua, zlib, zstd
 # Final image only needs glibc (from distroless base) + HAProxy binary + Lua modules
 
-ARG BASE=gcr.io/distroless/base-debian13:nonroot@sha256:fb282f8ed3057f71dbfe3ea0f5fa7e961415dafe4761c23948a9d4628c6166fe
+ARG BASE=gcr.io/distroless/base-debian13:nonroot@sha256:0896741ba5bafd3ac87ea025a5f578952f2d238ddc3614cb368acc983a687aa2
 FROM dhi.io/debian-base:trixie-dev AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
