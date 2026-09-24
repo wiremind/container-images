@@ -17,8 +17,8 @@ variable "PG_MAJOR_VERSIONS" {
 // in overwhelm (src/overwhelm/config.py), which the deployed CNPG operator supports.
 variable "UPSTREAM_TAGS" {
   default = {
-    "17" = "17.6-system-trixie" # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
-    "18" = "18.0-system-trixie" # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
+    "17" = "17.11-system-trixie" # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
+    "18" = "18.6-system-trixie" # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
   }
 }
 
@@ -44,7 +44,7 @@ variable "PGMQ_SHA256" {
 
 # Use fixed Debian snapshot version to ensure reproducible builds (see https://snapshot.debian.org/)
 variable "DEBIAN_SNAPSHOT_VERSION" {
-  default = "20260406T144517Z"
+  default = "20260922T082711Z"
 }
 
 group "default" {
