@@ -9,7 +9,7 @@ variable "CURL_VERSION" {
 
 // jq version (see https://pkgs.alpinelinux.org/packages?name=jq&branch=edge&repo=&arch=&origin=&flagged=&maintainer=)
 variable "JQ_VERSION" {
-  default = "1.8.1-r0"  # renovate: datasource=apk depName=jq
+  default = "1.8.2-r0"  # renovate: datasource=apk depName=jq
 }
 
 group "default" {
