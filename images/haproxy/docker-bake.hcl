@@ -6,7 +6,7 @@ variable "REGISTRY" {
 variable "HAPROXY_VERSIONS" {
   default = [
     "2.8.30", # renovate: datasource=docker depName=docker.io/library/haproxy
-    "3.0.22", # renovate: datasource=docker depName=docker.io/library/haproxy
+    "3.0.29", # renovate: datasource=docker depName=docker.io/library/haproxy
     "3.2.18", # renovate: datasource=docker depName=docker.io/library/haproxy
   ]
 }
