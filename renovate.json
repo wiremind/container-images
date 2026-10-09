@@ -34,6 +34,19 @@
       "matchFileNames": ["**/docker-bake.hcl"],
       "matchUpdateTypes": ["patch"],
       "automerge": true
+    },
+    {
+      "description": "nginx-vts-exporter follows the latest nginx stable branch. nginx stable branches have an even minor version.",
+      "matchFileNames": ["images/nginx-vts-exporter/**"],
+      "matchDepNames": ["docker.io/nginxinc/nginx-unprivileged"],
+      "allowedVersions": "/^\\d+\\.\\d*[02468]\\.\\d+(-alpine)?$/"
+    },
+    {
+      "description": "Minor updates of nginx-vts-exporter go to the next stable branch. A human merges them because the VTS module compiles against nginx.",
+      "matchFileNames": ["images/nginx-vts-exporter/**"],
+      "matchDepNames": ["docker.io/nginxinc/nginx-unprivileged"],
+      "matchUpdateTypes": ["minor"],
+      "enabled": true
     }
   ],
   "customManagers": [

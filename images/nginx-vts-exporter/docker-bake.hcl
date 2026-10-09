@@ -2,8 +2,9 @@ variable "REGISTRY" {
   default = "ghcr.io/wiremind"
 }
 
-variable "VERSIONS" {
-  default = ["1.28.0-alpine", "1.29.3-alpine"]
+// Latest nginx stable branch (even minor version). The build appends "-alpine" to select the Alpine variant.
+variable "NGINX_VERSION" {
+  default = "1.30.5" # renovate: datasource=docker depName=docker.io/nginxinc/nginx-unprivileged
 }
 
 group "default" {
@@ -11,11 +12,9 @@ group "default" {
 }
 
 target "nginx-vts-exporter" {
-  name       = "nginx-vts-exporter-${replace(replace(v, ".", "-"), "-alpine", "")}"
-  matrix     = { v = VERSIONS }
   context    = "."
   dockerfile = "Containerfile"
-  tags       = ["${REGISTRY}/nginx-vts-exporter:${v}"]
-  args       = { UPSTREAM_TAG = v }
+  tags       = ["${REGISTRY}/nginx-vts-exporter:${NGINX_VERSION}-alpine"]
+  args       = { UPSTREAM_TAG = "${NGINX_VERSION}-alpine" }
   platforms  = ["linux/amd64", "linux/arm64"]
 }
