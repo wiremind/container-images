@@ -1,6 +1,6 @@
 # syntax=docker.io/docker/dockerfile:1
 
-ARG UPSTREAM_TAG=1.28.2-alpine
+ARG UPSTREAM_TAG=1.30.5-alpine
 FROM docker.io/nginxinc/nginx-unprivileged:${UPSTREAM_TAG} AS nginx-image
 
 
