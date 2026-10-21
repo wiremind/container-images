@@ -1,7 +1,8 @@
 # syntax=docker.io/docker/dockerfile:1
 
 ARG UPSTREAM_TAG=3.3.6-debian13
-FROM dhi.io/haproxy:${UPSTREAM_TAG}-dev AS builder
+# The builder only runs mmdebstrap, so it needs a Debian base image, not HAProxy.
+FROM dhi.io/debian-base:trixie-dev AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NOWARNINGS="yes"
