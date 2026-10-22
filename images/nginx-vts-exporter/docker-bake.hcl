@@ -4,7 +4,7 @@ variable "REGISTRY" {
 
 // Latest nginx stable branch (even minor version). The build appends "-alpine" to select the Alpine variant.
 variable "NGINX_VERSION" {
-  default = "1.30.5" # renovate: datasource=docker depName=docker.io/nginxinc/nginx-unprivileged
+  default = "1.30.6" # renovate: datasource=docker depName=docker.io/nginxinc/nginx-unprivileged
 }
 
 group "default" {
