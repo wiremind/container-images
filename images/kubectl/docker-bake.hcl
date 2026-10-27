@@ -11,7 +11,8 @@ variable "DEBIAN_SNAPSHOT_VERSION" {
 variable "DEBIAN_VERSIONS" {
   default = [
     "v1.34.6",
-    "v1.35.3"
+    "v1.35.3",
+    "v1.37.1"
   ]
 }
 
