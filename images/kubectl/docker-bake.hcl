@@ -10,8 +10,8 @@ variable "DEBIAN_SNAPSHOT_VERSION" {
 // kubectl versions (e.g., "v1.34.3", "v1.35.0")
 variable "DEBIAN_VERSIONS" {
   default = [
-    "v1.34.6",
-    "v1.35.3"
+    "v1.34.13", # renovate: datasource=github-releases depName=kubernetes/kubernetes
+    "v1.35.10", # renovate: datasource=github-releases depName=kubernetes/kubernetes
   ]
 }
 
