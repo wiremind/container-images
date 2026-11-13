@@ -47,6 +47,14 @@
       "matchDepNames": ["docker.io/nginxinc/nginx-unprivileged"],
       "matchUpdateTypes": ["minor"],
       "enabled": true
+    },
+    {
+      "description": "A PostgreSQL minor release moves the second number of the cnpg-pgmq base tag (17.12 to 17.13), which docker versioning calls minor. A human merges it, because the DEBIAN_SNAPSHOT_VERSION often needs a bump in the same PR.",
+      "matchDepNames": ["ghcr.io/cloudnative-pg/postgresql"],
+      "matchUpdateTypes": ["minor"],
+      "enabled": true,
+      "automerge": false,
+      "groupName": "cnpg-pgmq PostgreSQL"
     }
   ],
   "customManagers": [
@@ -77,6 +85,16 @@
       ],
       "datasourceTemplate": "apk",
       "versioningTemplate": "apk"
+    },
+    {
+      "customType": "regex",
+      "description": "Update docker tags with a suffix in docker-bake.hcl files, like 17.12-system-trixie. The manager above reads digits and dots only.",
+      "managerFilePatterns": ["/(^|/)docker-bake\\.hcl$/"],
+      "matchStrings": [
+        "\"(?<currentValue>\\d+\\.\\d+-[^\"\\s]+)\"[,\\s]*#\\s*renovate:\\s*datasource=docker\\s+depName=(?<depName>[^\\s]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
     }
   ]
 }
